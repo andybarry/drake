@@ -25,8 +25,12 @@ namespace DrakeCollision
                                                   const Element& elemA, 
                                                   const Element& elemB, 
                                                   const ResultCollShPtr& c);
-                                                  
-      virtual double collisionRaycast(const Vector3d &origin, const Vector3d &ray_endpoint);
+
+      virtual bool allCollisions(std::vector<int>& bodyA_idx, 
+                                 std::vector<int>& bodyB_idx, 
+                                 MatrixXd& ptsA, MatrixXd& ptsB);
+                                 
+        virtual double collisionRaycast(const Vector3d &origin, const Vector3d &ray_endpoint);
       // END Required member functions
   };
 }

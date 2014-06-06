@@ -101,20 +101,29 @@ classdef RigidBodyGeometry
             obj = RigidBodyCylinder(r,l);  % l/2
           case 'mesh'
             filename=char(thisNode.getAttribute('filename'));
+            scale = 1;
+            if thisNode.hasAttribute('scale')
+              scale = parseParamString(model,robotnum,char(thisNode.getAttribute('scale')));
+            end
             
-            if ~isempty(strfind(filename,'package://'))
-              filename=strrep(filename,'package://','');
+            % parse strings with forward and backward slashes
+            filename = strrep(filename,'/',filesep);
+            filename = strrep(filename,'\',filesep);
+
+            if ~isempty(strfind(filename,['package:',filesep,filesep]))
+              filename=strrep(filename,['package:',filesep,filesep],'');
               [package,filename]=strtok(filename,filesep);
               filename=[rospack(package),filename];
             else
               [path,name,ext] = fileparts(filename);
-              if (path(1)~=filesep)  % the it's a relative path
+              if (isempty(path) || path(1)~=filesep)  % the it's a relative path
                 path = fullfile(options.urdfpath,path);
               end
               filename = fullfile(path,[name,ext]);
             end
             
             obj = RigidBodyMesh(GetFullPath(filename));
+            obj.scale = scale;
           case 'capsule'
             r = parseParamString(model,robotnum,char(thisNode.getAttribute('radius')));
             l = parseParamString(model,robotnum,char(thisNode.getAttribute('length')));

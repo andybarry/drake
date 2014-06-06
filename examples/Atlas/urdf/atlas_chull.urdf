@@ -561,14 +561,14 @@
     <member link="r_uleg"/>
     <ignored_collision_filter_group collision_filter_group="core"/>
     <ignored_collision_filter_group collision_filter_group="r_uleg"/>
-    <!--<ignored_collision_filter_group collision_filter_group="l_uleg"/>-->
+    <ignored_collision_filter_group collision_filter_group="l_uleg"/>
   </collision_filter_group>
   <collision_filter_group name="l_uleg">
     <member link="l_uglut"/>
     <member link="l_lglut"/>
     <member link="l_uleg"/>
     <ignored_collision_filter_group collision_filter_group="core"/>
-    <!--<ignored_collision_filter_group collision_filter_group="r_uleg"/>-->
+    <ignored_collision_filter_group collision_filter_group="r_uleg"/>
     <ignored_collision_filter_group collision_filter_group="l_uleg"/>
   </collision_filter_group>
   <collision_filter_group name="r_leg">
@@ -1005,7 +1005,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://mit_drcsim_scripts/models/multisense_sl/meshes/head.wrl"/>
+        <mesh filename="meshes/head.wrl"/>
       </geometry>
       <material name="">
         <color rgba="0.9098 0.44314 0.031373 1"/>

@@ -72,6 +72,7 @@ classdef RigidBodyMesh < RigidBodyGeometry
     end
     
     function pts = getPoints(obj)
+      assert(all(obj.scale == 1)); % todo: handle this case
       pts = loadFile(obj);
     end
 
@@ -81,7 +82,7 @@ classdef RigidBodyMesh < RigidBodyGeometry
       shape.type = shape.MESH;
       shape.string_data = obj.filename;
       shape.num_float_data = 1;
-      shape.float_data = 1.0;  % scale
+      shape.float_data = obj.scale;  % scale
 
       shape.position = obj.T(1:3,4);
       shape.quaternion = rotmat2quat(obj.T(1:3,1:3));
@@ -89,6 +90,8 @@ classdef RigidBodyMesh < RigidBodyGeometry
     end
     
     function writeWRLShape(obj,fp,td)
+      assert(obj.scale == 1); % todo: handle this case
+      
       function tabprintf(fp,varargin), for i=1:td, fprintf(fp,'\t'); end, fprintf(fp,varargin{:}); end
       tabprintf(fp,'Transform {\n'); td=td+1;
       tabprintf(fp,'translation %f %f %f\n',obj.T(1:3,4));
@@ -127,6 +130,7 @@ classdef RigidBodyMesh < RigidBodyGeometry
   
   properties
     filename;
+    scale=1;
   end
   
 end

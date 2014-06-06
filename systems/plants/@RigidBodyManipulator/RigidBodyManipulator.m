@@ -41,7 +41,7 @@ classdef RigidBodyManipulator < Manipulator
       % inputs).
       
       if (nargin<2), options = struct(); end
-      if ~isfield(options,'terrain'), options.terrain = RigidBodyFlatTerrain(); end;
+      if ~isfield(options,'terrain'), options.terrain = []; end;
 
       obj = obj@Manipulator(0,0);
       obj.body = newBody(obj);
@@ -239,13 +239,17 @@ classdef RigidBodyManipulator < Manipulator
       ptr = obj.mex_model_ptr;
     end
     
-    function f = cartesianForceToSpatialForce(obj,kinsol,body_ind,point,force)  
+    function [f,dfdq,dfdforce] = cartesianForceToSpatialForce(obj,kinsol,body_ind,point,force)  
       % @param body_ind is an index of the body
       % @param point is a point on the rigid body (in body coords)
       % @param force is a cartesion force (in world coords)
       
       % convert force to body coordinates
-      ftmp=bodyKin(obj,kinsol,body_ind,[force,zeros(3,1)]);
+      if (nargout>1)
+        [ftmp,ftmpJ,ftmpP]=bodyKin(obj,kinsol,body_ind,[force,zeros(3,1)]);                                                                                                   
+      else
+        ftmp=bodyKin(obj,kinsol,body_ind,[force,zeros(3,1)]);
+      end
       
       % try to do it the Xtree way
       force = ftmp(:,1)-ftmp(:,2);
@@ -253,6 +257,15 @@ classdef RigidBodyManipulator < Manipulator
       
       % convert to joint frame (featherstone dynamics algorithm never reasons in body coordinates)
       f = obj.body(body_ind).X_joint_to_body'*f_body;
+      
+      if (nargout>1)
+        dforcedq = ftmpJ(1:3,:)-ftmpJ(4:6,:);                                                                                                                                 
+        dforcedforce = ftmpP(1:3,1:size(force,1))-ftmpP(4:6,1:size(force,1));
+        df_bodydq = [ cross(repmat(point,1,size(dforcedq,2)),dforcedq); dforcedq ];                                                                                           
+        df_bodydforce = [ cross(repmat(point,1,size(dforcedforce,2)),dforcedforce); dforcedforce];
+        dfdq = obj.body(body_ind).X_joint_to_body'*df_bodydq;                                                                                                                 
+        dfdforce = obj.body(body_ind).X_joint_to_body'*df_bodydforce;
+      end
     end
     
     function model=addJoint(model,name,type,parent_ind,child_ind,xyz,rpy,axis,damping,coulomb_friction,static_friction,coulomb_window,limits)
@@ -614,8 +627,16 @@ classdef RigidBodyManipulator < Manipulator
 
       % collisionDetect may require the mex version of the manipulator,
       % so it should go after createMexPointer
-      phi = model.collisionDetect(zeros(model.getNumPositions,1));
-      model.num_contact_pairs = length(phi);
+      if (model.mex_model_ptr~=0 && checkDependency('bullet'))
+        phi = model.collisionDetect(zeros(model.getNumPositions,1));
+        model.num_contact_pairs = length(phi);
+      else
+        if ~isempty([model.body.contact_shapes])
+          warning('Drake:RigidBodyManipulator:ContactGeometryButNoBullet','Your model has contact geometry, but you do not have bullet support.  Contacts will simply be ignored.');
+        end
+        model.num_contact_pairs = 0;
+      end
+      
       if (model.num_contact_pairs>0)
         warning('Drake:RigidBodyManipulator:UnsupportedContactPoints','Contact is not supported by the dynamics methods of this class.  Consider using TimeSteppingRigidBodyManipulator or HybridPlanarRigidBodyManipulator');
       end
@@ -1595,7 +1616,13 @@ classdef RigidBodyManipulator < Manipulator
         
         % add inertia into parent
         if (any(any(body.I))) 
-          % same as the composite inertia calculation in HandC.m
+            %Check before running setInertial() that the body doesn't have added-mass
+            %coefficients (I haven't written up the welding support for that yet - JSI)
+          if ~valuecheck(body.Iaddedmass,zeros(6,6));
+              error('Adding inertia to parent with added-mass coefficients is not supported yet');
+          end
+            
+          % same as the composite inertia calculation in HandC.m          
           parent = setInertial(parent,parent.I + body.Xtree' * body.I * body.Xtree);
         end
         
@@ -2085,6 +2112,16 @@ classdef RigidBodyManipulator < Manipulator
       elnode = node.getElementsByTagName('thrust').item(0);
       if ~isempty(elnode)
         [model,fe] = RigidBodyThrust.parseURDFNode(model,robotnum,elnode,options);
+      end
+      
+      elnode = node.getElementsByTagName('added_mass').item(0);
+      if ~isempty(elnode)
+        [model,fe] = RigidBodyAddedMass.parseURDFNode(model,robotnum,elnode,options);
+      end
+      
+      elnode = node.getElementsByTagName('buoyancy').item(0);
+      if ~isempty(elnode)
+        [model,fe] = RigidBodyBuoyant.parseURDFNode(model,robotnum,elnode,options);
       end
       
       if ~isempty(fe)
