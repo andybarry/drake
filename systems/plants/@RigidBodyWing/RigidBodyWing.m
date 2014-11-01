@@ -77,7 +77,7 @@ classdef RigidBodyWing < RigidBodyForceElement
       obj.area = chord*span;
       obj.chord = chord;
       obj.span = span;
-      obj.stall_angle = stallAngle;
+      obj.stall_angle = deg2rad(stallAngle);
       obj.profile = deblank(profile);
       obj.velocity = velocity;
       
@@ -120,7 +120,7 @@ classdef RigidBodyWing < RigidBodyForceElement
         obj.fCd = CDSpline;
         obj.fCm = CMSpline;
       elseif strcmpi(profile, 'flat plate')
-        [obj.fCl,obj.fCd,obj.fCm,obj.dfCl,obj.dfCd,obj.dfCm] = RigidBodyWing.flatplate(obj.rho,obj.area);
+        [obj.fCl,obj.fCd,obj.fCm,obj.dfCl,obj.dfCd,obj.dfCm] = RigidBodyWing.flatplate(obj.rho,obj.area,obj.chord,obj.stall_angle);
       else % not flat plate.  I.e. its either a NACA or .dat file
         if strcmp(profile(1:4),'NACA')
           profile = strtrim(profile(5:end));
@@ -222,12 +222,12 @@ classdef RigidBodyWing < RigidBodyForceElement
           result = systemWCMakeEnv(commandstring);
         catch E
           disp('Error running AVL.  Switching to Flat Plate.  Results likely inaccurate')
-          [obj.fCl,obj.fCd,obj.fCm,obj.dfCl,obj.dfCd,obj.dfCm] = flatplate(obj.rho,obj.area);
+          [obj.fCl,obj.fCd,obj.fCm,obj.dfCl,obj.dfCd,obj.dfCm] = RigidBodyWing.flatplate(obj.rho,obj.area,obj.chord,obj.stall_angle);
           return
         end
         if result ~= 0 || ~ exist(avlresultsloc, 'file');%if AVL didn't execute properly
           warning('Error running AVL. The system() call did not execute properly.  Switching to Flat Plate.  Results likely inaccurate')
-          [obj.fCl,obj.fCd,obj.fCm,obj.dfCl,obj.dfCd,obj.dfCm] = flatplate(obj.rho,obj.area);
+          [obj.fCl,obj.fCd,obj.fCm,obj.dfCl,obj.dfCd,obj.dfCm] = RigidBodyWing.flatplate(obj.rho,obj.area,obj.chord,obj.stall_angle);
           return
         end
         %            disp('Processing AVL output...')
@@ -618,15 +618,17 @@ classdef RigidBodyWing < RigidBodyForceElement
 
   methods (Static)
     
-    function [fCl,fCd,fCm,dfCl,dfCd,dfCm] = flatplate(rho,area)
+    function [fCl,fCd,fCm,dfCl,dfCd,dfCm] = flatplate(rho,area,chord,stallAngle)
       fCl = @(alpha) sin(alpha).*cos(alpha)*rho*area;
       dfCl = @(alpha) (cos(alpha).^2 - sin(alpha).^2)*rho*area;
       fCd = @(alpha) sin(alpha).^2*rho*area;
       dfCd = @(alpha) 2*cos(alpha).*sin(alpha)*rho*area;
-      % old version: moment coefficient is non-zero (only) when stalled
-      % obj.fCm = @(alpha) (abs(alpha)>stallAngle).*(-2*alpha/pi)*obj.rho*obj.area*chord/4;
-      fCm = @(alpha) 0;  % the urdf doc says stall angle is ignored for flat plate
-      dfCm = @(alpha) 0;
+      % version 1: moment coefficient is non-zero (only) when stalled
+      fCm = @(alpha) (abs(alpha)>stallAngle).*(-2*alpha/pi)*rho*area*chord/4;
+      dfCm = @(alpha) (abs(alpha)>stallAngle)*(-2/pi)*rho*area*chord/4;
+      % version 2: moment coefficient is always zero
+      % fCm = @(alpha) 0;  % the urdf doc says stall angle is ignored for flat plate
+      % dfCm = @(alpha) 0;
     end
       
     function [ wingvel_struct, wingvel_dstruct ]= computeWingVelocity(kinframe, manip, q, qd, kinsol)

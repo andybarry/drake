@@ -58,7 +58,7 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing
       [obj, model] = onCompile@RigidBodyWing(obj, model);
 
       control_surface_area = obj.span .* obj.control_surface_chord;
-      [fCl, fCd, fCm, dfCl, dfCd, dfCm ] = RigidBodyWing.flatplate(obj.rho,control_surface_area);
+      [fCl, fCd, fCm, dfCl, dfCd, dfCm ] = RigidBodyWing.flatplate(obj.rho,control_surface_area,obj.chord,obj.stall_angle);
 
       obj.fCl_control_surface = @(aoa,u) fCl(aoa+u);
       obj.fCd_control_surface = @(aoa,u) fCd(aoa+u);
