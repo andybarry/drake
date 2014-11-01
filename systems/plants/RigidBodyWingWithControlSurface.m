@@ -61,6 +61,13 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing
       [obj.fCl_control_surface, obj.fCd_control_surface, obj.fCm_control_surface, ...
         obj.dfCl_control_surface, obj.dfCd_control_surface, obj.dfCm_control_surface ] ...
         = flateplate(obj.rho,control_surface_area);
+      
+      % override fCM to accommodate shift in x-axis to aerodynamic center of
+      % control surface (note: this is flat plate specific)
+      % (lift and drag are uneffected)
+      r = obj.chord / 2 + obj.control_surface_chord / 2;
+      obj.fCm_control_surface = @(aoa) obj.rho * r * sin(aoa) .* cos(aoa) * control_surface_area;
+      obj.dfCm_control_surface = @(aoa) obj.rho * r * (cos(aoa).^2 - sin(aoa).^2) * control_surface_area;
     end
     
     function [force, B_force, dforce, dB_force] = computeSpatialForce(obj,manip,q,qd)
@@ -101,7 +108,7 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing
       airspeed = norm(wingvel_world_xz);
       
       aoa = -atan2(wingvel_rel(3),wingvel_rel(1));
-      daoa_du = ?
+      daoa_du = 1;  % this is here for future velocity-control implementation
       
       % note: it would be very simple to implement a velocity-controlled
       % control surface here, too.  it would just need to add a single 
@@ -113,13 +120,11 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing
       
       
       % linearize about u = 0
-      % Cl = Cl_linear*u + Cl_affine
+      % Cl = Cl_linear*u + Cl_affine  (but the affine terms are already
+      % applied from the main wing)
       Cl_linear = obj.dfCl_control_surface(aoa)*daoa_du;
-      Cl_affine = obj.fCl_control_surface(aoa);
       Cd_linear = obj.dfCd_control_surface(aoa)*daoa_du;
-      Cd_affine = obj.fCd_control_surface(aoa);
       Cm_linear = obj.dfCm_control_surface(aoa)*daoa_du;
-      Cm_affine = obj.fCm_control_surface(aoa);
       
       % debug data to create plots
       
@@ -212,105 +217,6 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing
       B_force(:, obj.input_num) = B_lift + B_drag + B_moment; 
       
       dB_force = 0; %todo
-
-         
-    end
-    
-    function [ fCl_interp, fCd_interp, fCm_interp ] = flateplateControlSurfaceInterp(obj)
-      % Builds a smooth interpolation of values for lift, drag, and moment
-      % coefficients for a flatplate control surface
-      %
-      %
-      % See flateplateControlSurface for more information on the
-      % computation.
-      %
-      % @retval fCl_interp smooth interpolated surface for lift force
-      %   divided by \f$ v^2 \f$
-      % @retval fCd_interp smooth interpolated surface for drag force
-      %   divided by \f$ v^2 \f$
-      % @retval fCm_interp smooth interpolated surface for moment force
-      %   divided by \f$ v^2 \f$
-      
-      
-      % build the ranges for interpolation
-      laminarpts = 30;
-      aoa_range = [-180:2:-(obj.stall_angle+.0001) -obj.stall_angle:2*obj.stall_angle/laminarpts:(obj.stall_angle-.0001) obj.stall_angle:2:180];
-      aoa_range = deg2rad(aoa_range);
-      
-      
-      
-      control_surface_range = obj.getControlSurfaceRange();
-      
-      [ fCl, fCd, fCm, aoa_mat, control_surface_mat] = obj.flatplateControlSurface(aoa_range, control_surface_range);
-      
-      
-      fCl_interp = griddedInterpolant(aoa_mat', control_surface_mat', fCl');
-      fCd_interp = griddedInterpolant(aoa_mat', control_surface_mat', fCd');
-      fCm_interp = griddedInterpolant(aoa_mat', control_surface_mat', fCm');
-      
-    end
-    
-    function [ fCl, fCd, fCm, aoa_mat, control_surface_mat ] = flatplateControlSurface(obj, aoa, control_surface_angle_rad)
-      % Computes coefficients for a flat plate control surface given angle of attack and
-      % the control surface offset in radians.
-      %
-      % @param aoa angle of attack of the wing (can be an array)
-      % @param control_surface_angle_rad angle of the control surface in
-      %   radians.  0 is no deflection, positive deflection is upwards (if
-      %   it was an elevator, it would be pitch up on the plane)
-      %   can be an array.
-      %
-      % 
-      % Lift force from control surface = \f$ \frac{1}{2} \rho v^2 C_l(aoa+u) S_2 \f$
-      %
-      % Drag force = \f$ \frac{1}{2} \rho v^2 C_d(aoa+u) S_2 \f$
-      %
-      % Moment torque comes just from the lift on the control surface since
-      % drag is in the plane and will not produce a torque
-      %
-      % Moment torque = \f$ v^2 \rho r \sin(aoa + u) \cos(aoa + u) S_2 \f$
-      %
-      % <pre>
-      %   rho: air pressure
-      %   S2: control surface area
-      %   aoa: angle of attack
-      %   u: amount of deflection in radians from the control input
-      %   v: airspeed
-      % </pre>
-      %
-      % See pages 34-35 of Cory10a.
-      %
-      % So here, we return \f$ \frac{1}{2} \rho C_l(aoa+u) S_2 \f$
-      % because then you can multiply by just \f$ v^2 \f$ to compute force.
-      %   
-      % @retval fCl instantaneous life force from the control surface divided by \f$ v^2 \f$
-      % @retval Cd instantaneous drag force from the control surface divided by \f$ v^2 \f$
-      % @retval Cm instantaneous moment coefficient from the control surface divided by \f$ v^2 \f$
-      % @retval aoa_mat matrix of angle of attack values used 
-      % @retval control_surface_mat matrix of control surfaces used
-      
-      % repmat so we evaluate at every aoa and control surface angle
-      
-      aoa_mat = repmat(aoa, length(control_surface_angle_rad), 1);
-      control_surface_mat = repmat(control_surface_angle_rad', 1, length(aoa));
-      
-      Cl_control_surface = 2 .* sin(aoa_mat + control_surface_mat) .* cos(aoa_mat + control_surface_mat);
-      
-      Cd_control_surface = 2 .* (sin(aoa_mat + control_surface_mat)) .^ 2;
-      
-      control_surface_area = obj.span .* obj.control_surface_chord;
-      
-      fCl = 0.5 .* obj.rho .* Cl_control_surface .* control_surface_area;
-      
-      fCd = 0.5 .* obj.rho .* Cd_control_surface .* control_surface_area;
-      
-      % distance from the center of the wing to the center of the control
-      % surface
-      r = obj.chord / 2 + obj.control_surface_chord / 2;
-      
-      fCm = obj.rho .* r .* sin(aoa_mat + control_surface_mat) .* cos(aoa_mat + control_surface_mat) .* control_surface_area;
-      
-      
     end
     
     function control_surface_range = getControlSurfaceRange(obj)
