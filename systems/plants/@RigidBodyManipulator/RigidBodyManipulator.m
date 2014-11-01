@@ -658,6 +658,14 @@ classdef RigidBodyManipulator < Manipulator
           model.body(i).velocity_num=0;
         end
       end
+      for i=1:length(model.force)
+        if isa(model.force{i},'RigidBodyElementWithState')
+          n = getNumPositions(model.force{i});
+          model.force{i}.position_num=num_q+(1:n)';
+          num_q=num_q+n;
+        end
+      end
+      % todo (same for sensors, etc)
 
       if (num_q<1) error('This model has no DOF!'); end
 
@@ -1935,7 +1943,13 @@ classdef RigidBodyManipulator < Manipulator
             frame_dims(model.getNumPositions() + b.velocity_num)=i;
           end
         end
-
+        for j=1:length(model.force)
+          if isa(model.force{j},'RigidBodyElementWithState')
+            positions = vertcat(positions,getCoordinateNames(model.force{j}));
+            frame_dims(model.force{j}.position_num)=i;
+          end
+        end
+        
         fr = CoordinateFrame([model.name{i},'Position'],length(positions),'q',positions);
         if numel(model.robot_position_frames)<i || ~isequal_modulo_transforms(fr,model.robot_position_frames{i}) % let the previous handle stay valid if possible
           model.robot_position_frames{i} = fr;

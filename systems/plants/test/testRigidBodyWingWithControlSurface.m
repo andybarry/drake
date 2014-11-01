@@ -33,6 +33,6 @@ function xtraj = testRigidBodyWingWithControlSurface()
 
   assert(final_x(1) > 5) % should move forward
   assert(abs(final_x(2)) < .1) % should stay in the center
-  assert(final_x(3) > 1); % should gain altitude
+  assert(final_x(3) > .5); % should gain altitude
 
 end
