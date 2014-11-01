@@ -310,14 +310,14 @@ classdef RigidBodyWing < RigidBodyForceElement
       end
       function flatplate()
         disp('Using a flat plate airfoil.')
-        laminarpts = 30;
-        angles = [-180:2:-(stallAngle+.0001) -stallAngle:2*stallAngle/laminarpts:(stallAngle-.0001) stallAngle:2:180];
-        %CMangles is used to make the Moment coefficient zero when the wing
-        %is not stalled
-        CMangles = [-180:2:-(stallAngle+.0001) zeros(1,laminarpts) stallAngle:2:180];
-        obj.fCm = foh(deg2rad(angles), -(CMangles./90)*obj.rho*obj.area*chord/4);
-        obj.fCl = spline(deg2rad(angles), .5*(2*sind(angles).*cosd(angles))*obj.rho*obj.area);
-        obj.fCd = spline(deg2rad(angles), .5*(2*sind(angles).^2)*obj.rho*obj.area);
+        % moment coefficient is zero when not stalled
+%        obj.fCm = @(alpha) (abs(alpha)>stallAngle).*(-2*alpha/pi)*obj.rho*obj.area*chord/4;
+        obj.fCm = @(alpha) 0;  % the urdf doc says stall angle is ignored for flat plate
+        obj.dfCm = @(alpha) 0;
+        obj.fCl = @(alpha) sin(alpha).*cos(alpha)*obj.rho*obj.area;
+        obj.dfCl = @(alpha) (cos(alpha).^2 - sin(alpha).^2)*obj.rho*obj.area;
+        obj.fCd = @(alpha) sin(alpha).^2*obj.rho*obj.area;
+        obj.dfCd = @(alpha) -2*cos(alpha).*sin(alpha)*obj.rho*obj.area;
       end
       function makeSplines()
         %Dimensionalized splines, such that you only need to
@@ -343,12 +343,18 @@ classdef RigidBodyWing < RigidBodyForceElement
 
       % convert the splines to PPTrajectory, allowing
       % for fasteval improving performance a lot
-      obj.fCm = PPTrajectory(obj.fCm);
-      obj.fCl = PPTrajectory(obj.fCl);
-      obj.fCd = PPTrajectory(obj.fCd);
-      obj.dfCm = obj.fCm.fnder(1);
-      obj.dfCl = obj.fCl.fnder(1);
-      obj.dfCd = obj.fCd.fnder(1);
+      if ~isa(obj.fCm,'function_handle')
+        obj.fCm = PPTrajectory(obj.fCm);
+        obj.dfCm = obj.fCm.fnder(1);
+      end
+      if ~isa(obj.fCl,'function_handle')
+        obj.fCl = PPTrajectory(obj.fCl);
+        obj.dfCl = obj.fCl.fnder(1);
+      end
+      if ~isa(obj.fCd,'function_handle')
+        obj.fCd = PPTrajectory(obj.fCd);
+        obj.dfCd = obj.fCd.fnder(1);
+      end
 
     end %constructor
 
@@ -518,7 +524,7 @@ classdef RigidBodyWing < RigidBodyForceElement
         dCM = feval(obj.dfCm,aoa);
       end
     end
-
+    
   end
 
   methods (Static)
