@@ -101,6 +101,16 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing
       airspeed = norm(wingvel_world_xz);
       
       aoa = -atan2(wingvel_rel(3),wingvel_rel(1));
+      daoa_du = ?
+      
+      % note: it would be very simple to implement a velocity-controlled
+      % control surface here, too.  it would just need to add a single 
+      % state for the control surface position (which would add a component
+      % to the aoa), and then the control surface velocity will impact
+      % daoa_du.  as it is right now, you are not only ignoring the inertia
+      % of the control surface, but also the (relative) contributions from
+      % the velocity of the control surface.
+      
       
       % linearize about u = 0
       % Cl = Cl_linear*u + Cl_affine
