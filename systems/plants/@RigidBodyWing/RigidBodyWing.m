@@ -120,7 +120,7 @@ classdef RigidBodyWing < RigidBodyForceElement
         obj.fCd = CDSpline;
         obj.fCm = CMSpline;
       elseif strcmpi(profile, 'flat plate')
-        flatplate()
+        [obj.fCl,obj.fCd,obj.fCm,obj.dfCl,obj.dfCd,obj.dfCm] = flatplate(obj.rho,obj.area);
       else % not flat plate.  I.e. its either a NACA or .dat file
         if strcmp(profile(1:4),'NACA')
           profile = strtrim(profile(5:end));
@@ -222,12 +222,12 @@ classdef RigidBodyWing < RigidBodyForceElement
           result = systemWCMakeEnv(commandstring);
         catch E
           disp('Error running AVL.  Switching to Flat Plate.  Results likely inaccurate')
-          flatplate()
+          [obj.fCl,obj.fCd,obj.fCm,obj.dfCl,obj.dfCd,obj.dfCm] = flatplate(obj.rho,obj.area);
           return
         end
         if result ~= 0 || ~ exist(avlresultsloc, 'file');%if AVL didn't execute properly
           warning('Error running AVL. The system() call did not execute properly.  Switching to Flat Plate.  Results likely inaccurate')
-          flatplate()
+          [obj.fCl,obj.fCd,obj.fCm,obj.dfCl,obj.dfCd,obj.dfCm] = flatplate(obj.rho,obj.area);
           return
         end
         %            disp('Processing AVL output...')
@@ -369,18 +369,6 @@ classdef RigidBodyWing < RigidBodyForceElement
         CMs = [-fliplr(postStallCMs) CMs postStallCMs];
       end
       
-      
-      function flatplate()
-        disp('Using a flat plate airfoil.')
-        % moment coefficient is zero when not stalled
-%        obj.fCm = @(alpha) (abs(alpha)>stallAngle).*(-2*alpha/pi)*obj.rho*obj.area*chord/4;
-        obj.fCm = @(alpha) 0;  % the urdf doc says stall angle is ignored for flat plate
-        obj.dfCm = @(alpha) 0;
-        obj.fCl = @(alpha) sin(alpha).*cos(alpha)*obj.rho*obj.area;
-        obj.dfCl = @(alpha) (cos(alpha).^2 - sin(alpha).^2)*obj.rho*obj.area;
-        obj.fCd = @(alpha) sin(alpha).^2*obj.rho*obj.area;
-        obj.dfCd = @(alpha) -2*cos(alpha).*sin(alpha)*obj.rho*obj.area;
-      end
       
       
       function makeSplines()
@@ -622,19 +610,25 @@ classdef RigidBodyWing < RigidBodyForceElement
       % @override
 
       body.airfoil_needs_update = true;
-      
       body = bindParams@RigidBodyElement(body,model,pval);
-
     end
 
   end
   
-  
-  
-  
 
   methods (Static)
     
+    function [fCl,fCd,fCm,dfCl,dfCd,dfCm] = flatplate(rho,area)
+      fCl = @(alpha) sin(alpha).*cos(alpha)*rho*area;
+      dfCl = @(alpha) (cos(alpha).^2 - sin(alpha).^2)*rho*area;
+      fCd = @(alpha) sin(alpha).^2*rho*area;
+      dfCd = @(alpha) -2*cos(alpha).*sin(alpha)*rho*area;
+      % old version: moment coefficient is non-zero (only) when stalled
+      % obj.fCm = @(alpha) (abs(alpha)>stallAngle).*(-2*alpha/pi)*obj.rho*obj.area*chord/4;
+      fCm = @(alpha) 0;  % the urdf doc says stall angle is ignored for flat plate
+      dfCm = @(alpha) 0;
+    end
+      
     function [ wingvel_struct, wingvel_dstruct ]= computeWingVelocity(kinframe, manip, q, qd, kinsol)
       % Computes the velcity of the wing in word coordinates
       %

@@ -9,9 +9,12 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing
     control_surface_min_deflection; % min deflection in radians
     control_surface_max_deflection; % max deflection in radians
     
-    fCl_control_surface; % Interpolant for the control surface, given aoa and u
+    fCl_control_surface; % Interpolant or function_handle for the control surface, given aoa and u
     fCd_control_surface;
     fCm_control_surface; 
+    dfCl_control_surface; % Interpolant or function_handle for the control surface, given aoa and u
+    dfCd_control_surface;
+    dfCm_control_surface; 
     
     control_surface_increment = 0.01; % resolution of control surface parameterization in radians
   end
@@ -25,7 +28,7 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing
       % @param control_surface_chord length of the control surface attached
       %   to the wing
       % @param control_surface_min_deflection minimum deflection of the
-      %   control surface attached to the wing in raidans (ex. -0.9)
+      %   control surface attached to the wing in radians (ex. -0.9)
       % @param control_surface_max_deflection maximum deflection of the
       %   control surface attached to the wing in radians (ex. 0.9)
       
@@ -45,8 +48,6 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing
       
       obj.direct_feedthrough_flag = true;
       obj.input_limits = [ obj.control_surface_min_deflection; obj.control_surface_max_deflection ];
-      
-      
     end
     
     function [obj, model] = onCompile(obj, model)
@@ -55,15 +56,11 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing
       
       % call parent
       [obj, model] = onCompile@RigidBodyWing(obj, model);
-      
-      
-      % compute the coefficients for the flat plate
-      
-      %[obj.fCl, obj.fCd, obj.fCm] = obj.flatplate_old();
-      
-      
-      [obj.fCl_control_surface, obj.fCd_control_surface, obj.fCm_control_surface ] = obj.flateplateControlSurfaceInterp();
-    
+
+      control_surface_area = obj.span .* obj.control_surface_chord;
+      [obj.fCl_control_surface, obj.fCd_control_surface, obj.fCm_control_surface, ...
+        obj.dfCl_control_surface, obj.dfCd_control_surface, obj.dfCm_control_surface ] ...
+        = flateplate(obj.rho,control_surface_area);
     end
     
     function [force, B_force, dforce, dB_force] = computeSpatialForce(obj,manip,q,qd)
@@ -103,19 +100,16 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing
       
       airspeed = norm(wingvel_world_xz);
       
-      aoa = -(180/pi)*atan2(wingvel_rel(3),wingvel_rel(1));
-      
-      aoa = deg2rad(aoa);
-      
+      aoa = -atan2(wingvel_rel(3),wingvel_rel(1));
       
       % linearize about u = 0
-      
-      du = 0.01;
-      
-      Cl_linear = (obj.fCl_control_surface(aoa, du) - obj.fCl_control_surface(aoa, -du) ) / (2*du);
-      Cd_linear = (obj.fCd_control_surface(aoa, du) - obj.fCd_control_surface(aoa, -du) ) / (2*du);
-      Cm_linear = (obj.fCm_control_surface(aoa, du) - obj.fCm_control_surface(aoa, -du) ) / (2*du);
-      
+      % Cl = Cl_linear*u + Cl_affine
+      Cl_linear = obj.dfCl_control_surface(aoa)*daoa_du;
+      Cl_affine = obj.fCl_control_surface(aoa);
+      Cd_linear = obj.dfCd_control_surface(aoa)*daoa_du;
+      Cd_affine = obj.fCd_control_surface(aoa);
+      Cm_linear = obj.dfCm_control_surface(aoa)*daoa_du;
+      Cm_affine = obj.fCm_control_surface(aoa);
       
       % debug data to create plots
       
