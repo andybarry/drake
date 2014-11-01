@@ -13,7 +13,7 @@ if (nargout>3)
 end
 
 if length(obj.force)>0
-  f_ext = zeros(6,m.NB);
+  f_ext = zeros(6,m.NB)*q(1);
   if (nargout>3)
       df_ext = zeros(6*m.NB,size(q,1)+size(qd,1));
   end

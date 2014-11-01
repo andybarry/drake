@@ -2003,6 +2003,18 @@ classdef RigidBodyManipulator < Manipulator
       fixedind = find(isnan([model.body.pitch]) | ... % actual fixed joint
         cellfun(@(a) (isnumeric(a) && ~any(any(a))),{model.body.I}));    % body has no inertia (yes, it happens in pr2.urdf)
 
+      protectedLinks=[];
+      for j=1:length(model.loop)
+        protectedLinks = vertcat(protectedLinks,model.loop{j}.protectsLinks(model));
+      end
+      for j=1:length(model.sensor)
+        protectedLinks = vertcat(protectedLinks,model.sensor{j}.protectsLinks(model));
+      end
+      for j=1:numel(model.force)
+        protectedLinks = vertcat(protectedLinks,model.force{j}.protectsLinks(model));
+      end
+      protectedLinks=unique(protectedLinks);
+      
       for i=fixedind(end:-1:1)  % go backwards, since it is presumably more efficient to start from the bottom of the tree
         body = model.body(i);
         if body.parent<1
@@ -2012,7 +2024,7 @@ classdef RigidBodyManipulator < Manipulator
         parent = model.body(body.parent);
 
         if ~isnan(body.pitch)
-          if any([model.body.parent] == i) || any(any(body.I))
+          if any([model.body.parent] == i) || any(any(body.I)) || any(protectedLinks==i)
             % link has inertial importance from child links
             % pr link has inertia now (from a fixed link coming from a
             % descendant).  abort removal.
