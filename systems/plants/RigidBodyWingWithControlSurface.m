@@ -17,12 +17,14 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
     dfCm_control_surface_du; 
     
     control_surface_increment = 0.01; % resolution of control surface parameterization in radians
-    control_surface_velocity_controlled = false;
+
+    control_surface_velocity_controlled = false; % set to true for the control surface to be velocity controlled instead of position controlled
+
   end
   
   methods
     
-    function obj = RigidBodyWingWithControlSurface(frame_id, profile, chord, span, stall_angle, velocity, control_surface_chord, control_surface_min_deflection, control_surface_max_deflection)
+    function obj = RigidBodyWingWithControlSurface(frame_id, profile, chord, span, stall_angle, velocity, control_surface_chord, control_surface_min_deflection, control_surface_max_deflection, control_surface_velocity_controlled)
       % Constructor taking similar arguments to RigidBodyWing except
       % with the addition of control surface parameters
       %
@@ -32,12 +34,30 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
       %   control surface attached to the wing in radians (ex. -0.9)
       % @param control_surface_max_deflection maximum deflection of the
       %   control surface attached to the wing in radians (ex. 0.9)
+      % @pararm control_surface_velocity_controlled set to true to make the
+      %   control surface velocity controlled instead of position
+      %   controlled (adds the control surface position as a state to the
+      %   system)
+      %   @default false
       
       
       % we need to be able to construct with no arguments per 
       % http://www.mathworks.com/help/matlab/matlab_oop/class-constructor-methods.html#btn2kiy
       
-      obj = obj@RigidBodyWing(frame_id, profile, chord, span, stall_angle, velocity);
+      
+      if control_surface_velocity_controlled
+        % for a position controlled actuator, we let the RigidBodyWing cover
+        % the affine terms for the control surface (at u = 0)
+        % for a velocity controlled actuator, we must compute that part of it
+        % ourselves, so we need to subtract the control surface chord out of
+        % the wing chord
+        
+        chord_wing = chord - control_surface_chord;
+      else
+        chord_wing = chord;
+      end
+      
+      obj = obj@RigidBodyWing(frame_id, profile, chord_wing, span, stall_angle, velocity);
 
       if (nargin == 0)
         return;
@@ -49,6 +69,8 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
       
       obj.direct_feedthrough_flag = true;
       obj.input_limits = [ obj.control_surface_min_deflection; obj.control_surface_max_deflection ];
+      
+      
     end
     
     function n = getNumPositions(obj)
@@ -120,14 +142,6 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
       % @retval B_force B matrix containing the linearized component of the
       %   force from the input (from the control surface's deflection)
       
-      
-      % first, call the parent class's  computeSpatialForce to get the
-      % u-invariant parts
-      
-      [force, dforce] = computeSpatialForce@RigidBodyWing(obj, manip, q, qd);
-      
-      % now compute B and dB
-      
       kinsol = doKinematics(manip,q,true,true,qd);
       
       
@@ -143,69 +157,6 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
       
       aoa = -atan2(wingvel_rel(3),wingvel_rel(1));
       
-      % note: it would be very simple to implement a velocity-controlled
-      % control surface here, too.  it would just need to add a single 
-      % state for the control surface position (which would add a component
-      % to the aoa), and then the control surface velocity will impact
-      % daoa_du.  as it is right now, you are not only ignoring the inertia
-      % of the control surface, but also the (relative) contributions from
-      % the velocity of the control surface.
-      
-      
-      % linearize about u = 0
-      u=0;
-      % Cl = Cl_linear*u + Cl_affine  (but the affine terms are already
-      % applied from the main wing)
-      Cl_linear = obj.dfCl_control_surface_du(aoa,u);
-      Cd_linear = obj.dfCd_control_surface_du(aoa,u);
-      Cm_linear = obj.dfCm_control_surface_du(aoa,u);
-      
-      % debug data to create plots
-      
-      %{
-      % begin_debug
-        control_surface_range = obj.getControlSurfaceRange();
-        aoa_range = repmat(aoa, 1, length(control_surface_range));
-        Cl = obj.fCl_control_surface(aoa_range, control_surface_range);
-        Cd = obj.fCd_control_surface(aoa_range, control_surface_range);
-        Cm = obj.fCm_control_surface(aoa_range, control_surface_range);
-
-        figure(1)
-        clf
-        plot(rad2deg(control_surface_range), Cl)
-        hold on
-        plot(rad2deg(control_surface_range), Cl_linear * control_surface_range, 'r');
-        xlabel('Control surface deflection (deg)');
-        ylabel('Coefficient of lift');
-        title(['aoa = ' num2str(rad2deg(aoa))]);
-
-        figure(2)
-        clf
-        plot(rad2deg(control_surface_range), Cd)
-        hold on
-        plot(rad2deg(control_surface_range), Cd_linear * control_surface_range, 'g');
-        xlabel('Control surface deflection (deg)');
-        ylabel('Coefficient of drag');
-        title(['aoa = ' num2str(rad2deg(aoa))]);
-
-        figure(3)
-        clf
-        plot(rad2deg(control_surface_range), Cm);
-        hold on
-        plot(rad2deg(control_surface_range), Cm_linear * control_surface_range, 'k');
-        xlabel('Control surface deflection (deg)');
-        ylabel('Moment coefficient');
-        title(['aoa = ' num2str(rad2deg(aoa))]);
-      % end_debug
-      %}
-      
-      f_lift = Cl_linear * airspeed*airspeed;
-      f_drag = Cd_linear * airspeed*airspeed;
-      torque_moment = Cm_linear * airspeed * airspeed;
-      
-      % initalize B
-      B_force = manip.B*0*q(1);
-      
       % lift is defined as the force perpendicular to the direction of
       % airflow, so the lift axis in the body frame is the axis
       % perpendicular to wingvel_world_xz
@@ -219,6 +170,146 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
       drag_axis_in_world_frame = -wingvel_world_xz / norm(wingvel_world_xz);
       
       
+      
+      
+      % note: it would be very simple to implement a velocity-controlled
+      % control surface here, too.  it would just need to add a single 
+      % state for the control surface position (which would add a component
+      % to the aoa), and then the control surface velocity will impact
+      % daoa_du.  as it is right now, you are not only ignoring the inertia
+      % of the control surface, but also the (relative) contributions from
+      % the velocity of the control surface.
+      
+      if obj.control_surface_velocity_controlled
+        % compute the u-invariant parts with the velocity state
+        
+        control_surface_area = obj.span .* obj.control_surface_chord;
+        
+        [fCl,fCd,fCm,dfCl,dfCd,dfCm] = flatplate(obj.rho, control_surface_area, obj.control_surface_chord)
+        
+        control_surface_angle = TODO_get_from_state_vector
+        
+        
+        aoa_control_surface = aoa + control_surface_angle;
+        
+        fCl_surface = fCl(aoa_control_surface);
+        fCd_surface = fCd(aoa_control_surface);
+        fCm_surface = fCm(aoa_control_surface);
+        
+        
+        lift_force = fCl_surface * airspeed * airspeed;
+        drag_force = fCd_surface * airspeed * airspeed;
+        
+        moment_torque =  fCm_surface * airspeed * airspeed;
+        
+        % TODO: handle non-zero moment_torque
+        if abs(moment_torque) > eps
+          warning('unhandled nonzero moment torque');
+        end
+        
+        lift_vector = lift_force * lift_axis_in_world_frame;
+        drag_vector = drag_force * drag_axis_in_world_frame;
+        
+        % these forces are in the lift and drag axis
+        % project them onto the world x, y, and z axes
+        
+        x_unit = [1; 0; 0];
+        y_unit = [0; 1; 0];
+        z_unit = [0; 0; 1];
+        
+        force_x = dot(lift_vector, x_unit) + dot(drag_vector, x_unit);
+        force_y = dot(lift_vector, y_unit) + dot(drag_vector, y_unit);
+        force_z = dot(lift_vector, z_unit) + dot(drag_vector, z_unit);
+        
+        f_world_frame = [force_x; force_y; force_z];
+
+        f = manip.cartesianForceToSpatialForce(kinsol, frame.body_ind, zeros(3,1), f_world_frame);
+
+        force = sparse(6, getNumBodies(manip)) * q(1); % q(1) for taylorvar
+
+        force(:, frame.body_ind) = f;
+        
+        
+        % now compute the forces that depend on u
+        % we'd like:
+        % lift = fCl * ( r * u )^2 because (r*u)^2 is the velocity
+        %   compoment added from the moving control surface
+        % drag = fCd * ( r * u )^2
+        % moment = fCm * (r * u )^2
+        %
+        % but we can't do that since we need a linear function in terms of u
+        % so take the linearization around u = 0
+        
+        f_lift = fCl * r^2;
+        f_drag = fCd * r^2;
+        torque_moment = fCm * r^2;
+        
+        
+      else
+        % first, call the parent class's  computeSpatialForce to get the
+        % u-invariant parts
+
+        [force, dforce] = computeSpatialForce@RigidBodyWing(obj, manip, q, qd);
+      
+      
+
+        % linearize about u = 0
+        u=0;
+        % Cl = Cl_linear*u + Cl_affine  (but the affine terms are already
+        % applied from the main wing)
+        Cl_linear = obj.dfCl_control_surface_du(aoa,u);
+        Cd_linear = obj.dfCd_control_surface_du(aoa,u);
+        Cm_linear = obj.dfCm_control_surface_du(aoa,u);
+
+        % debug data to create plots
+
+        %{
+        % begin_debug
+          control_surface_range = obj.getControlSurfaceRange();
+          aoa_range = repmat(aoa, 1, length(control_surface_range));
+          Cl = obj.fCl_control_surface(aoa_range, control_surface_range);
+          Cd = obj.fCd_control_surface(aoa_range, control_surface_range);
+          Cm = obj.fCm_control_surface(aoa_range, control_surface_range);
+
+          figure(1)
+          clf
+          plot(rad2deg(control_surface_range), Cl)
+          hold on
+          plot(rad2deg(control_surface_range), Cl_linear * control_surface_range, 'r');
+          xlabel('Control surface deflection (deg)');
+          ylabel('Coefficient of lift');
+          title(['aoa = ' num2str(rad2deg(aoa))]);
+
+          figure(2)
+          clf
+          plot(rad2deg(control_surface_range), Cd)
+          hold on
+          plot(rad2deg(control_surface_range), Cd_linear * control_surface_range, 'g');
+          xlabel('Control surface deflection (deg)');
+          ylabel('Coefficient of drag');
+          title(['aoa = ' num2str(rad2deg(aoa))]);
+
+          figure(3)
+          clf
+          plot(rad2deg(control_surface_range), Cm);
+          hold on
+          plot(rad2deg(control_surface_range), Cm_linear * control_surface_range, 'k');
+          xlabel('Control surface deflection (deg)');
+          ylabel('Moment coefficient');
+          title(['aoa = ' num2str(rad2deg(aoa))]);
+        % end_debug
+        %}
+
+        f_lift = Cl_linear * airspeed*airspeed;
+        f_drag = Cd_linear * airspeed*airspeed;
+        torque_moment = Cm_linear * airspeed * airspeed;
+        
+      end
+      
+      % initalize B
+      B_force = manip.B*0*q(1);
+      
+
       % position of origin
       [~, J] = forwardKin(manip, kinsol, obj.kinframe, zeros(3,1));
 
@@ -427,12 +518,14 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
       control_surface_chord_urdf = parseParamString(model,robotnum,char(node.getAttribute('control_surface_chord')));
       control_surface_min_deflection_urdf = parseParamString(model,robotnum,char(node.getAttribute('control_surface_min_deflection')));
       control_surface_max_deflection_urdf = parseParamString(model,robotnum,char(node.getAttribute('control_surface_max_deflection')));
+      control_surface_velocity_controlled_urdf = parseParamString(model,robotnum,char(node.getAttribute('control_surface_velocity_controlled')));
       
       [model,this_frame_id] = addFrame(model,RigidBodyFrame(parent,xyz,rpy,[name,'_frame']));
       
       obj = RigidBodyWingWithControlSurface(this_frame_id, wing_profile, wing_chord, ...
         wing_span, wing_stall_angle, nominal_speed, control_surface_chord_urdf, ...
-        control_surface_min_deflection_urdf, control_surface_max_deflection_urdf);
+        control_surface_min_deflection_urdf, control_surface_max_deflection_urdf, ...
+        control_surface_velocity_controlled_urdf);
       
       obj.name = name;
       obj.visual_geometry = visual_geometry_urdf;
