@@ -44,6 +44,9 @@ classdef (InferiorClasses = {?ConstantTrajectory}) PPTrajectory < Trajectory
         y = ppvalSafe(obj.pp,t);  % still benefits from being safe (e.g. for supporting TaylorVar)
       end
     end
+    function y = feval(obj,t)  % support feval syntax
+      y=eval(obj,t)
+    end
 
     function dtraj = fnder(obj,order)
       if nargin<2
