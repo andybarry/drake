@@ -2,7 +2,7 @@ classdef RigidBodyWing < RigidBodyForceElement
 
   properties
     kinframe;  % index to RigidBodyFrame
-    fCl  % PPTrajectories (splines) representing the *dimensional* coefficients
+    fCl  % PPTrajectories (splines) or function_handles representing the *dimensional* coefficients
     fCd  % with fCl = 1/2 rho*S*Cl, etc. (S=area)
     fCm
     dfCl
@@ -315,16 +315,16 @@ classdef RigidBodyWing < RigidBodyForceElement
         %CMangles is used to make the Moment coefficient zero when the wing
         %is not stalled
         CMangles = [-180:2:-(stallAngle+.0001) zeros(1,laminarpts) stallAngle:2:180];
-        obj.fCm = foh(angles, -(CMangles./90)*obj.rho*obj.area*chord/4);
-        obj.fCl = spline(angles, .5*(2*sind(angles).*cosd(angles))*obj.rho*obj.area);
-        obj.fCd = spline(angles, .5*(2*sind(angles).^2)*obj.rho*obj.area);
+        obj.fCm = foh(deg2rad(angles), -(CMangles./90)*obj.rho*obj.area*chord/4);
+        obj.fCl = spline(deg2rad(angles), .5*(2*sind(angles).*cosd(angles))*obj.rho*obj.area);
+        obj.fCd = spline(deg2rad(angles), .5*(2*sind(angles).^2)*obj.rho*obj.area);
       end
       function makeSplines()
         %Dimensionalized splines, such that you only need to
         %multiply by vel^2.  Lift = .5*Cl*rho*area*vel^2
-        obj.fCl = spline(AoAs, .5*CLs*obj.rho*obj.area);
-        obj.fCd = spline(AoAs, .5*CDs*obj.rho*obj.area);
-        obj.fCm = spline(AoAs, .5*CMs*obj.rho*obj.area*chord);
+        obj.fCl = spline(deg2rad(AoAs), .5*CLs*obj.rho*obj.area);
+        obj.fCd = spline(deg2rad(AoAs), .5*CDs*obj.rho*obj.area);
+        obj.fCm = spline(deg2rad(AoAs), .5*CMs*obj.rho*obj.area*chord);
         disp('Aerodynamic Splines Finished')
       end
       %These are needed in order to make avl and xfoil run correctly.  Not
@@ -422,10 +422,10 @@ classdef RigidBodyWing < RigidBodyForceElement
         dairspeeddqd = (wingvel_world'*dwingvel_worlddqd)/norm(wingvel_world);
       end
 
-      aoa = -(180/pi)*atan2(wingvel_rel(3),wingvel_rel(1));
+      aoa = -atan2(wingvel_rel(3),wingvel_rel(1));
       if (nargout>1)
-        daoadq = -(180/pi)*(wingvel_rel(1)*dwingvel_reldq(3,:)-wingvel_rel(3)*dwingvel_reldq(1,:))/(wingvel_rel(1)^2+wingvel_rel(3)^2);
-        daoadqd = -(180/pi)*(wingvel_rel(1)*dwingvel_reldqd(3,:)-wingvel_rel(3)*dwingvel_reldqd(1,:))/(wingvel_rel(1)^2+wingvel_rel(3)^2);
+        daoadq = -(wingvel_rel(1)*dwingvel_reldq(3,:)-wingvel_rel(3)*dwingvel_reldq(1,:))/(wingvel_rel(1)^2+wingvel_rel(3)^2);
+        daoadqd = -(wingvel_rel(1)*dwingvel_reldqd(3,:)-wingvel_rel(3)*dwingvel_reldqd(1,:))/(wingvel_rel(1)^2+wingvel_rel(3)^2);
       end
 
       %lift and drag are the forces on the body in the world frame.
@@ -509,13 +509,13 @@ classdef RigidBodyWing < RigidBodyForceElement
     function [CL, CD, CM, dCL, dCD, dCM] = coeffs(obj, aoa)
       %returns dimensionalized coefficient of lift, drag, and pitch moment for a
       %given angle of attack
-      CL = obj.fCl.eval(aoa);
-      CD = obj.fCd.eval(aoa);
-      CM = obj.fCm.eval(aoa);
+      CL = feval(obj.fCl,aoa);
+      CD = feval(obj.fCd,aoa);
+      CM = feval(obj.fCm,aoa);
       if (nargout>3)
-        dCL = obj.dfCl.eval(aoa);
-        dCD = obj.dfCd.eval(aoa);
-        dCM = obj.dfCm.eval(aoa);
+        dCL = feval(obj.dfCl,aoa);
+        dCD = feval(obj.dfCd,aoa);
+        dCM = feval(obj.dfCm,aoa);
       end
     end
 

@@ -45,7 +45,7 @@ classdef (InferiorClasses = {?ConstantTrajectory}) PPTrajectory < Trajectory
       end
     end
     function y = feval(obj,t)  % support feval syntax
-      y=eval(obj,t)
+      y=eval(obj,t);
     end
 
     function dtraj = fnder(obj,order)
