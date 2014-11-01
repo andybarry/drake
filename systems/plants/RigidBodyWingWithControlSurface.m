@@ -60,7 +60,7 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing
       control_surface_area = obj.span .* obj.control_surface_chord;
       [obj.fCl_control_surface, obj.fCd_control_surface, obj.fCm_control_surface, ...
         obj.dfCl_control_surface, obj.dfCd_control_surface, obj.dfCm_control_surface ] ...
-        = flateplate(obj.rho,control_surface_area);
+        = RigidBodyWing.flatplate(obj.rho,control_surface_area);
       
       % override fCM to accommodate shift in x-axis to aerodynamic center of
       % control surface (note: this is flat plate specific)

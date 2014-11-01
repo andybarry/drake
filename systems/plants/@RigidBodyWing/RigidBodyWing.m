@@ -120,7 +120,7 @@ classdef RigidBodyWing < RigidBodyForceElement
         obj.fCd = CDSpline;
         obj.fCm = CMSpline;
       elseif strcmpi(profile, 'flat plate')
-        [obj.fCl,obj.fCd,obj.fCm,obj.dfCl,obj.dfCd,obj.dfCm] = flatplate(obj.rho,obj.area);
+        [obj.fCl,obj.fCd,obj.fCm,obj.dfCl,obj.dfCd,obj.dfCm] = RigidBodyWing.flatplate(obj.rho,obj.area);
       else % not flat plate.  I.e. its either a NACA or .dat file
         if strcmp(profile(1:4),'NACA')
           profile = strtrim(profile(5:end));
@@ -622,7 +622,7 @@ classdef RigidBodyWing < RigidBodyForceElement
       fCl = @(alpha) sin(alpha).*cos(alpha)*rho*area;
       dfCl = @(alpha) (cos(alpha).^2 - sin(alpha).^2)*rho*area;
       fCd = @(alpha) sin(alpha).^2*rho*area;
-      dfCd = @(alpha) -2*cos(alpha).*sin(alpha)*rho*area;
+      dfCd = @(alpha) 2*cos(alpha).*sin(alpha)*rho*area;
       % old version: moment coefficient is non-zero (only) when stalled
       % obj.fCm = @(alpha) (abs(alpha)>stallAngle).*(-2*alpha/pi)*obj.rho*obj.area*chord/4;
       fCm = @(alpha) 0;  % the urdf doc says stall angle is ignored for flat plate
