@@ -12,9 +12,9 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing
     fCl_control_surface; % Interpolant or function_handle for the control surface, given aoa and u
     fCd_control_surface;
     fCm_control_surface; 
-    dfCl_control_surface; % Interpolant or function_handle for the control surface, given aoa and u
-    dfCd_control_surface;
-    dfCm_control_surface; 
+    dfCl_control_surface_du; % Interpolant or function_handle for the control surface, given aoa and u
+    dfCd_control_surface_du;
+    dfCm_control_surface_du; 
     
     control_surface_increment = 0.01; % resolution of control surface parameterization in radians
   end
@@ -58,16 +58,22 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing
       [obj, model] = onCompile@RigidBodyWing(obj, model);
 
       control_surface_area = obj.span .* obj.control_surface_chord;
-      [obj.fCl_control_surface, obj.fCd_control_surface, obj.fCm_control_surface, ...
-        obj.dfCl_control_surface, obj.dfCd_control_surface, obj.dfCm_control_surface ] ...
-        = RigidBodyWing.flatplate(obj.rho,control_surface_area);
+      [fCl, fCd, fCm, dfCl, dfCd, dfCm ] = RigidBodyWing.flatplate(obj.rho,control_surface_area);
+
+      obj.fCl_control_surface = @(aoa,u) fCl(aoa+u);
+      obj.fCd_control_surface = @(aoa,u) fCd(aoa+u);
+      obj.fCm_control_surface = @(aoa,u) fCm(aoa+u);
+
+      obj.dfCl_control_surface_du = @(aoa,u) dfCl(aoa+u);
+      obj.dfCd_control_surface_du = @(aoa,u) dfCd(aoa+u);
+      obj.dfCm_control_surface_du = @(aoa,u) dfCm(aoa+u);
       
       % override fCM to accommodate shift in x-axis to aerodynamic center of
       % control surface (note: this is flat plate specific)
       % (lift and drag are uneffected)
       r = obj.chord / 2 + obj.control_surface_chord / 2;
-      obj.fCm_control_surface = @(aoa) obj.rho * r * sin(aoa) .* cos(aoa) * control_surface_area;
-      obj.dfCm_control_surface = @(aoa) obj.rho * r * (cos(aoa).^2 - sin(aoa).^2) * control_surface_area;
+      obj.fCm_control_surface = @(aoa,u) obj.rho * r * sin(aoa+u) .* cos(aoa+u) * control_surface_area;
+      obj.dfCm_control_surface_du = @(aoa,u) obj.rho * r * (cos(aoa+u).^2 - sin(aoa+u).^2) * control_surface_area;
     end
     
     function [force, B_force, dforce, dB_force] = computeSpatialForce(obj,manip,q,qd)
@@ -108,7 +114,6 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing
       airspeed = norm(wingvel_world_xz);
       
       aoa = -atan2(wingvel_rel(3),wingvel_rel(1));
-      daoa_du = 1;  % this is here for future velocity-control implementation
       
       % note: it would be very simple to implement a velocity-controlled
       % control surface here, too.  it would just need to add a single 
@@ -120,11 +125,12 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing
       
       
       % linearize about u = 0
+      u=0;
       % Cl = Cl_linear*u + Cl_affine  (but the affine terms are already
       % applied from the main wing)
-      Cl_linear = obj.dfCl_control_surface(aoa)*daoa_du;
-      Cd_linear = obj.dfCd_control_surface(aoa)*daoa_du;
-      Cm_linear = obj.dfCm_control_surface(aoa)*daoa_du;
+      Cl_linear = obj.dfCl_control_surface_du(aoa,u);
+      Cd_linear = obj.dfCd_control_surface_du(aoa,u);
+      Cm_linear = obj.dfCm_control_surface_du(aoa,u);
       
       % debug data to create plots
       
