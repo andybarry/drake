@@ -120,7 +120,7 @@ classdef RigidBodyWing < RigidBodyForceElement
         obj.fCd = CDSpline;
         obj.fCm = CMSpline;
       elseif strcmpi(profile, 'flat plate')
-        [obj.fCl,obj.fCd,obj.fCm,obj.dfCl,obj.dfCd,obj.dfCm] = RigidBodyWing.flatplate(obj.rho,obj.area,obj.chord,obj.stall_angle);
+        [obj.fCl,obj.fCd,obj.fCm,obj.dfCl,obj.dfCd,obj.dfCm] = RigidBodyWing.flatplate(obj.rho,obj.area,obj.chord);
       else % not flat plate.  I.e. its either a NACA or .dat file
         if strcmp(profile(1:4),'NACA')
           profile = strtrim(profile(5:end));
@@ -222,12 +222,12 @@ classdef RigidBodyWing < RigidBodyForceElement
           result = systemWCMakeEnv(commandstring);
         catch E
           disp('Error running AVL.  Switching to Flat Plate.  Results likely inaccurate')
-          [obj.fCl,obj.fCd,obj.fCm,obj.dfCl,obj.dfCd,obj.dfCm] = RigidBodyWing.flatplate(obj.rho,obj.area,obj.chord,obj.stall_angle);
+          [obj.fCl,obj.fCd,obj.fCm,obj.dfCl,obj.dfCd,obj.dfCm] = RigidBodyWing.flatplate(obj.rho,obj.area,obj.chord);
           return
         end
         if result ~= 0 || ~ exist(avlresultsloc, 'file');%if AVL didn't execute properly
           warning('Error running AVL. The system() call did not execute properly.  Switching to Flat Plate.  Results likely inaccurate')
-          [obj.fCl,obj.fCd,obj.fCm,obj.dfCl,obj.dfCd,obj.dfCm] = RigidBodyWing.flatplate(obj.rho,obj.area,obj.chord,obj.stall_angle);
+          [obj.fCl,obj.fCd,obj.fCm,obj.dfCl,obj.dfCd,obj.dfCm] = RigidBodyWing.flatplate(obj.rho,obj.area,obj.chord);
           return
         end
         %            disp('Processing AVL output...')
@@ -618,14 +618,16 @@ classdef RigidBodyWing < RigidBodyForceElement
 
   methods (Static)
     
-    function [fCl,fCd,fCm,dfCl,dfCd,dfCm] = flatplate(rho,area,chord,stallAngle)
+    function [fCl,fCd,fCm,dfCl,dfCd,dfCm] = flatplate(rho,area,chord)
       fCl = @(alpha) sin(alpha).*cos(alpha)*rho*area;
       dfCl = @(alpha) (cos(alpha).^2 - sin(alpha).^2)*rho*area;
       fCd = @(alpha) sin(alpha).^2*rho*area;
       dfCd = @(alpha) 2*cos(alpha).*sin(alpha)*rho*area;
-      % version 1: moment coefficient is non-zero (only) when stalled
-      fCm = @(alpha) (abs(alpha)>stallAngle).*(-2*alpha/pi)*rho*area*chord/4;
-      dfCm = @(alpha) (abs(alpha)>stallAngle)*(-2/pi)*rho*area*chord/4;
+      % version 1: forces at the mean chord produce a moment at the quarter
+      % chord
+      r = chord / 4;
+      fCm = @(aoa) r*sin(aoa).*cos(aoa)*rho*area;
+      dfCm = @(aoa) r*(cos(aoa).^2 - sin(aoa).^2)*rho*area;
       % version 2: moment coefficient is always zero
       % fCm = @(alpha) 0;  % the urdf doc says stall angle is ignored for flat plate
       % dfCm = @(alpha) 0;

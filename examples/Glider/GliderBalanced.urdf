@@ -96,13 +96,13 @@
       effort="100" />
   </joint>
   <force_element name="Wing_force"> 
-    <wing chord=".177" nominal_speed="7" profile="flat plate" span=".5" stall_angle="181">
+    <wing chord=".177" nominal_speed="7" profile="flat plate" span=".5">
       <parent link="fuselage"/>
-  	<origin xyz="0 0 0" rpy="0 0 0"/> 
+  	<origin xyz="-0.0442 0 0" rpy="0 0 0"/>  <!-- want the half-chord to be at zero, but need to put origin at the quarter chord -->
     </wing>
   </force_element>
   <force_element name="Elevator_force"> 
-    <wing profile="flat plate" stall_angle="181" span=".21" chord=".07" nominal_speed="7">
+    <wing profile="flat plate" span=".21" chord=".07" nominal_speed="7">
       <parent link="Elevator"/>
       <origin xyz="-.022 0 0" rpy="0 0 0"/> 
     </wing>
