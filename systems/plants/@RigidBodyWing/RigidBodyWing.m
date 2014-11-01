@@ -525,10 +525,6 @@ classdef RigidBodyWing < RigidBodyForceElement
       end
     end
     
-    function linkid = protectsLinks(obj,model)
-      linkid = model.frame(-obj.kinframe).body_ind;
-    end
-
   end
 
   methods (Static)

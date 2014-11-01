@@ -25,13 +25,6 @@ classdef RigidBodyElement
         body.(fn{i}) = double(subs(body.param_bindings.(fn{i}),poly,pval));
       end
     end
-    
-    function linkid = protectsLinks(obj,model)
-      % by default, links with zero inertia (and no children) are removed
-      % from a model. force objects should overload this if they want 
-      % to protect a link from removal (even if it has zero inertia)
-      linkid = [];
-    end
   end
   
   methods    
