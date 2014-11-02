@@ -11,5 +11,7 @@ classdef RigidBodyElementWithState < RigidBodyElement
   
   properties
     position_num=[];
+    position_limit_min=[];
+    position_limit_max=[];
   end
 end

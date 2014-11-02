@@ -71,7 +71,8 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
       obj.direct_feedthrough_flag = true;
       
       if control_surface_velocity_controlled
-        %obj.joint_limits = [ obj.control_surface_min_deflection; obj.control_surface_max_deflection ]; 
+        obj.position_limit_min = obj.control_surface_min_deflection; 
+        obj.position_limit_max = obj.control_surface_max_deflection; 
         obj.input_limits = [ -inf; inf ];
       else
         obj.input_limits = [ obj.control_surface_min_deflection; obj.control_surface_max_deflection ];

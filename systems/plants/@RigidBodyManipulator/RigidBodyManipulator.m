@@ -634,7 +634,8 @@ classdef RigidBodyManipulator < Manipulator
       %% extract featherstone model structure
       model = extractFeatherstone(model);
       % set position and velocity vector indices
-      num_q=0;num_v=0;
+      num_q=0;num_v=0; 
+      position_limit_min=[]; position_limit_max=[];
       for i=1:length(model.body)
         if model.body(i).parent>0
           if (model.body(i).floating==1)
@@ -653,6 +654,8 @@ classdef RigidBodyManipulator < Manipulator
             num_v=num_v+1;
             model.body(i).velocity_num=num_v;
           end
+          position_limit_min = vertcat(position_limit_min,model.body(i).joint_limit_min);
+          position_limit_max = vertcat(position_limit_max,model.body(i).joint_limit_max);
         else
           model.body(i).position_num=0;
           model.body(i).velocity_num=0;
@@ -661,6 +664,8 @@ classdef RigidBodyManipulator < Manipulator
       for i=1:length(model.force)
         if isa(model.force{i},'RigidBodyElementWithState')
           n = getNumPositions(model.force{i});
+          position_limit_min = vertcat(position_limit_min,model.force{i}.position_limit_min);
+          position_limit_max = vertcat(position_limit_max,model.force{i}.position_limit_max);
           model.force{i}.position_num=num_q+(1:n)';
           num_q=num_q+n;
         end
@@ -748,7 +753,7 @@ classdef RigidBodyManipulator < Manipulator
         model = setDirectFeedthrough(model,false);
       end
 
-      model = model.setJointLimits([model.body.joint_limit_min]',[model.body.joint_limit_max]');
+      model = model.setJointLimits(position_limit_min,position_limit_max);
 
       model = model.setInputLimits(u_limit(:,1),u_limit(:,2));
 
