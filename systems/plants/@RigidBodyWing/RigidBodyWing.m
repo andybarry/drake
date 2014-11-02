@@ -628,9 +628,9 @@ classdef RigidBodyWing < RigidBodyForceElement
       % @retval fCl instantaneous lift force from the control surface divided by \f$ v^2 \f$
       % @retval fCd instantaneous drag force from the control surface divided by \f$ v^2 \f$
       % @retval fCm instantaneous moment coefficient from the control surface divided by \f$ v^2 \f$
-      % @retval dfCl derivative of instantaneous lift force from the control surface with respect to u divided by \f$ v^2 \f$
-      % @retval dfCd derivative of instantaneous drag force from the control surface with respect to u divided by \f$ v^2 \f$
-      % @retval dfCm derivative of instantaneous moment coefficient from the control surface with respect to u divided by \f$ v^2 \f$
+      % @retval dfCl derivative of instantaneous lift force from the control surface with respect to aoa divided by \f$ v^2 \f$
+      % @retval dfCd derivative of instantaneous drag force from the control surface with respect to aoa divided by \f$ v^2 \f$
+      % @retval dfCm derivative of instantaneous moment coefficient from the control surface with respect to aoa divided by \f$ v^2 \f$
       
       fCl = @(alpha) sin(alpha).*cos(alpha)*rho*area;
       dfCl = @(alpha) (cos(alpha).^2 - sin(alpha).^2)*rho*area;
