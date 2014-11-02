@@ -66,9 +66,16 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
       obj.control_surface_chord = control_surface_chord;
       obj.control_surface_min_deflection = control_surface_min_deflection;
       obj.control_surface_max_deflection = control_surface_max_deflection;
+      obj.control_surface_velocity_controlled = control_surface_velocity_controlled;
       
       obj.direct_feedthrough_flag = true;
-      obj.input_limits = [ obj.control_surface_min_deflection; obj.control_surface_max_deflection ];
+      
+      if control_surface_velocity_controlled
+        %obj.joint_limits = [ obj.control_surface_min_deflection; obj.control_surface_max_deflection ]; 
+        obj.input_limits = [ -inf; inf ];
+      else
+        obj.input_limits = [ obj.control_surface_min_deflection; obj.control_surface_max_deflection ];
+      end
       
       
     end

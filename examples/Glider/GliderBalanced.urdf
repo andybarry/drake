@@ -17,6 +17,7 @@
         iyz="0"
         izz="0.1" />
     </inertial>
+    <!--
     <visual>
       <origin
         xyz="-.135 0 0"
@@ -35,10 +36,11 @@
         xyz="0 0 0"
         rpy="0 0 0" />
       <geometry>
-        <!-- <mesh filename="meshes/GliderFuselage.STL" /> -->
+        <!- - <mesh filename="meshes/GliderFuselage.STL" /> - ->
         <box size =".3 .1 .03"/>
       </geometry>
     </collision>
+    -->
   </link>
 
   <force_element name="Wing_force">
