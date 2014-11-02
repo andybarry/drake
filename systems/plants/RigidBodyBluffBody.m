@@ -63,7 +63,7 @@ classdef RigidBodyBluffBody < RigidBodyForceElement
       
     end
     
-    function [force] = computeSpatialForce(obj,manip,q,qd)
+    function [force] = computeSpatialForce(obj,manip,q,qd,xx)
       % Computes the force and derivative of force for the aerodynamic
       % drag on this object.
       %

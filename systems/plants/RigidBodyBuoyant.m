@@ -20,7 +20,7 @@ classdef RigidBodyBuoyant < RigidBodyForceElement
       obj.volume = volume;
       
     end 
-    function force = computeSpatialForce(obj,manip,q,qd)
+    function force = computeSpatialForce(obj,manip,q,qd,xx)
       frame = getFrame(manip,obj.kinframe);
       kinsol = doKinematics(manip,q);
 

@@ -27,7 +27,7 @@ classdef RigidBodyPropellor < RigidBodyForceElement
       end
     end %constructor
     
-    function [force, B_mod, dforce, dB_mod] = computeSpatialForce(obj,manip,q,qd)
+    function [force, B_mod, dforce, dB_mod] = computeSpatialForce(obj,manip,q,qd,xx)
       %B_mod maps the input to generalized forces.
       
       force = sparse(6,getNumBodies(manip))*q(1);

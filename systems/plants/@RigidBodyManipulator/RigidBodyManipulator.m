@@ -245,17 +245,19 @@ classdef RigidBodyManipulator < Manipulator
       [z,normal] = getHeight(obj.terrain,contact_pos(1:2,:));
     end
 
-    function B = getB(obj,q,qd)
+    function B = getB(obj,q,qd,xx)
       % Note:  getB(obj) is ok iff there are no direct feedthrough force
       % elements.
       checkDirty(obj);
+      
+      if nargin<3, xx=[]; end
 
       B = obj.B;
       if length(obj.force)>0
         f_ext = sparse(6,m.NB);
         for i=1:length(obj.force)
           if (obj.force{i}.direct_feedthrough_flag)
-            [~,B_force] = computeSpatialForce(obj.force{i},obj,q,qd);
+            [~,B_force] = computeSpatialForce(obj.force{i},obj,q,qd,xx);
             B = B+B_force;
           end
         end
@@ -1387,7 +1389,7 @@ classdef RigidBodyManipulator < Manipulator
         lcmgl.switchBuffers();
     end
 
-    function drawLCMGLForces(model,q,qd,gravity_visual_magnitude)
+    function drawLCMGLForces(model,q,qd,xx,gravity_visual_magnitude)
         % draws the forces and torques on the robot. They are
         % spatial vectors (wrenches) and are drawn at the body's
         % origin on which they act. Forces are in green and torques
@@ -1402,7 +1404,8 @@ classdef RigidBodyManipulator < Manipulator
         % @param gravity_visual_magnitude specifies the (would-be) visual
         % length of the vector representing the gravitational force.
 
-        if (nargin<4), gravity_visual_magnitude=0.25; end
+        if (nargin<4), xx=[]; end
+        if (nargin<5), gravity_visual_magnitude=0.25; end
         gravity_force = getMass(model)*model.gravity;
         vector_scale = gravity_visual_magnitude/norm(gravity_force,2);
 
@@ -1418,7 +1421,7 @@ classdef RigidBodyManipulator < Manipulator
                     body_frame = getFrame(model,force_element.kinframe);
                     body_ind = body_frame.body_ind;
                 end
-                f_ext = computeSpatialForce(force_element,model,q,qd);
+                f_ext = computeSpatialForce(force_element,model,q,qd,xx);
                 joint_wrench = f_ext(:,body_ind);
                 body_wrench = inv(model.body(body_ind).X_joint_to_body)'*joint_wrench;
                 pos = forwardKin(model,kinsol,body_ind,[zeros(3,1),body_wrench(1:3),body_wrench(4:6)]);

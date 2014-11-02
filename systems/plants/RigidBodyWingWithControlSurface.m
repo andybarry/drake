@@ -259,7 +259,7 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         % first, call the parent class's  computeSpatialForce to get the
         % u-invariant parts
 
-        [force, dforce] = computeSpatialForce@RigidBodyWing(obj, manip, q, qd);
+        [force, dforce] = computeSpatialForce@RigidBodyWing(obj, manip, q, qd,xx);
       
       
 

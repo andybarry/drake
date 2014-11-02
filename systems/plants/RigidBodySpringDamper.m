@@ -11,7 +11,7 @@ classdef RigidBodySpringDamper < RigidBodyForceElement
   end
   
   methods
-    function [f_ext, df_ext] = computeSpatialForce(obj,manip,q,qd)
+    function [f_ext, df_ext] = computeSpatialForce(obj,manip,q,qd,xx)
       % todo: re-enable mex for planar version when i write mex the planer
       % bodykin
       
