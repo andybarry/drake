@@ -1,10 +1,14 @@
-function [H,C,B,dH,dC,dB] = manipulatorDynamics(obj,q,qd,use_mex)
+function [H,C,B,dH,dC,dB] = manipulatorDynamics(obj,q,qd,xx,use_mex)
 % note that you can also get C(q,qdot)*qdot + G(q) separately, because 
 % C = G when qdot=0
 
 checkDirty(obj);
 
-if (nargin<4) use_mex = true; end
+if (nargin<4) xx=[]; end
+if islogical(xx) 
+  error('manipulatorDynamics input arguments have changed.  use_mex is now the 5th argument.  sorry');
+end
+if (nargin<5) use_mex = true; end
 
 m = obj.featherstone;
 B = obj.B;
@@ -22,18 +26,18 @@ if length(obj.force)>0
     % as the number of bodies in the manipulator
     if (obj.force{i}.direct_feedthrough_flag)
       if (nargout>3)
-        [force,B_force,dforce,dB_force] = computeSpatialForce(obj.force{i},obj,q,qd);
+        [force,B_force,dforce,dB_force] = computeSpatialForce(obj.force{i},obj,q,qd,xx);
         dB = dB + dB_force;
       else
-        [force,B_force] = computeSpatialForce(obj.force{i},obj,q,qd);
+        [force,B_force] = computeSpatialForce(obj.force{i},obj,q,qd,xx);
       end
       B = B+B_force;
     else
       if (nargout>3)
-          [force,dforce] = computeSpatialForce(obj.force{i},obj,q,qd);
+          [force,dforce] = computeSpatialForce(obj.force{i},obj,q,qd,xx);
           dforce = reshape(dforce,numel(force),[]);
       else
-          force = computeSpatialForce(obj.force{i},obj,q,qd);
+          force = computeSpatialForce(obj.force{i},obj,q,qd,xx);
       end
     end
     f_ext(:,m.f_ext_map_to) = f_ext(:,m.f_ext_map_to)+force(:,m.f_ext_map_from);

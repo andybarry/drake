@@ -1,8 +1,6 @@
 classdef RigidBody < RigidBodyElement
   
   properties 
-    robotnum = 0;  % this body is associated with a particular robot/object number, named in model.name{objnum} 
-    
     % link properties
     linkname='';  % name of the associated link
     % NOTE: dofnum is deprecated, use position_num or velocity_num instead

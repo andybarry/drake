@@ -40,8 +40,9 @@ classdef Manipulator < DrakeSystem
     % Provides the DrakeSystem interface to the manipulatorDynamics.
 
       q = x(1:obj.num_positions);
-      v = x(obj.num_positions+1:end);
-
+      v = x(obj.num_positions+(1:obj.num_velocities));
+      xx = x(end+1-obj.num_additional_states:end);
+      
       if (nargout>1)
         if ~isempty(obj.position_constraints) || ~isempty(obj.velocity_constraints)
           % by naming this 'MATLAB:TooManyOutputs', geval will catch the
@@ -53,7 +54,7 @@ classdef Manipulator < DrakeSystem
         % If it fails, then it will raise the same exception that I would
         % want to raise for this method, stating that not all outputs were
         % assigned.  (since I can't write dxdot anymore)
-        [H,C,B,dH,dC,dB] = obj.manipulatorDynamics(q,v);
+        [H,C,B,dH,dC,dB] = obj.manipulatorDynamics(q,v,xx);
         Hinv = inv(H);
 
         if (obj.num_u>0)
@@ -74,8 +75,11 @@ classdef Manipulator < DrakeSystem
         dxdot = [...
           zeros(obj.num_positions,1), matGradMult(dVqInv, v), VqInv, zeros(obj.num_positions,obj.num_u);
           dvdot];
+        if obj.num_additional_states
+          error('not implemented yet.  but would be easy');
+        end
       else
-        [H,C,B] = manipulatorDynamics(obj,q,v);
+        [H,C,B] = manipulatorDynamics(obj,q,v,xx);
         Hinv = inv(H);
         if (obj.num_u>0) tau=B*u - C; else tau=-C; end
         tau = tau + computeConstraintForce(obj,q,v,H,tau,Hinv);
@@ -86,8 +90,16 @@ classdef Manipulator < DrakeSystem
         % but I already have and use Hinv, so use it again here
 
         xdot = [vToqdot(obj,q)*v; vdot];
+        if obj.num_additional_states
+          xdot = [xdot; additionalStateDynamics(obj,t,x,u)];
+        end
       end
+      
 
+    end
+    
+    function [xxdot,df] = additionalStateDynamics(obj,t,x,u)
+      % intentionally blank.  overload as necessary.
     end
 
     function [Vq,dVq] = qdotTov(obj, q)
@@ -249,7 +261,7 @@ classdef Manipulator < DrakeSystem
     % Guards the num_positions variable to make sure it stays consistent
     % with num_x.
       obj.num_positions = num_q;
-      obj = setNumContStates(obj,num_q+obj.num_velocities);
+      obj = setNumContStates(obj,num_q+obj.num_velocities+obj.num_additional_states);
     end
 
     function n = getNumPositions(obj)
@@ -260,11 +272,20 @@ classdef Manipulator < DrakeSystem
     % Guards the num_velocities variable to make sure it stays consistent
     % with num_x.
       obj.num_velocities = num_v;
-      obj = setNumContStates(obj,num_v+obj.num_positions);
+      obj = setNumContStates(obj,num_v+obj.num_positions+obj.num_additional_states);
     end
 
     function n = getNumVelocities(obj);
       n = obj.num_velocities;
+    end
+    
+    function obj = setNumAdditionalStates(obj,num_xx)
+      obj.num_additional_states = num_xx;
+      obj = setNumContStates(obj,obj.num_positions+obj.num_velocities+obj.num_additional_states);
+    end
+    
+    function n = getNumAdditionalStates(obj)
+      n = obj.num_additional_states;
     end
     
     function varargout = positionConstraints(obj,q)
@@ -506,6 +527,7 @@ classdef Manipulator < DrakeSystem
   properties (SetAccess = private, GetAccess = public)
     num_positions=0;
     num_velocities=0;
+    num_additional_states=0;    % some manipulators have extra things going on (sensors, actuators with state that is not a simple position or velocity)
     num_position_constraints=0;
     num_velocity_constraints=0;
     position_constraints = {};  % position equality constraints of the form phi(q)=const

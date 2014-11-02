@@ -19,7 +19,6 @@ classdef RigidBodyManipulator < Manipulator
     dim=3;
     terrain;
     num_contact_pairs;
-    num_kinematic_positions=0;
     contact_options; % struct containing options for contact/collision handling
     contact_constraint_id=[];
     frame = [];     % array of RigidBodyFrame objects
@@ -27,6 +26,7 @@ classdef RigidBodyManipulator < Manipulator
     robot_state_frames;
     robot_position_frames;
     robot_velocity_frames;
+    robot_extra_state_frames;
   end
 
   properties (Access=public)  % i think these should be private, but probably needed to access them from mex? - Russ
@@ -140,7 +140,7 @@ classdef RigidBodyManipulator < Manipulator
       bodies = obj.body;
       nb = length(bodies);
       nv = obj.num_velocities;
-      nq = obj.num_kinematic_positions;
+      nq = obj.num_positions;
       VqInv = zeros(nq, nv) * q(1); % to make TaylorVar work better
 
       if compute_gradient
@@ -636,7 +636,6 @@ classdef RigidBodyManipulator < Manipulator
       model = extractFeatherstone(model);
       % set position and velocity vector indices
       num_q=0;num_v=0; 
-      position_limit_min=[]; position_limit_max=[];
       for i=1:length(model.body)
         if model.body(i).parent>0
           if (model.body(i).floating==1)
@@ -655,21 +654,17 @@ classdef RigidBodyManipulator < Manipulator
             num_v=num_v+1;
             model.body(i).velocity_num=num_v;
           end
-          position_limit_min = vertcat(position_limit_min,model.body(i).joint_limit_min);
-          position_limit_max = vertcat(position_limit_max,model.body(i).joint_limit_max);
         else
           model.body(i).position_num=0;
           model.body(i).velocity_num=0;
         end
       end
-      model.num_kinematic_positions = num_q;
+      num_additional_states = 0;
       for i=1:length(model.force)
         if isa(model.force{i},'RigidBodyElementWithState')
-          n = getNumPositions(model.force{i});
-          position_limit_min = vertcat(position_limit_min,model.force{i}.position_limit_min);
-          position_limit_max = vertcat(position_limit_max,model.force{i}.position_limit_max);
-          model.force{i}.position_num=num_q+(1:n)';
-          num_q=num_q+n;
+          n = getNumStates(model.force{i});
+          model.force{i}.extra_state_num=num_additional_states+(1:n)';
+          num_additional_states=num_additional_states+n;
         end
       end
       % todo (same for sensors, etc)
@@ -701,7 +696,8 @@ classdef RigidBodyManipulator < Manipulator
       model = setNumInputs(model,size(model.B,2));
       model = setNumPositions(model,num_q);
       model = setNumVelocities(model,num_v);
-      model = setNumOutputs(model,num_q+num_v);
+      model = setNumAdditionalStates(model,num_additional_states);
+      model = setNumOutputs(model,num_q+num_v+num_additional_states);
 
       [model,paramframe,~,pmin,pmax] = constructParamFrame(model);
       if ~isequal_modulo_transforms(paramframe,getParamFrame(model)) % let the previous handle stay valid if possible
@@ -755,7 +751,7 @@ classdef RigidBodyManipulator < Manipulator
         model = setDirectFeedthrough(model,false);
       end
 
-      model = model.setJointLimits(position_limit_min,position_limit_max);
+      model = model.setJointLimits([model.body.joint_limit_min]',[model.body.joint_limit_max]');
 
       model = model.setInputLimits(u_limit(:,1),u_limit(:,2));
 
@@ -877,6 +873,21 @@ classdef RigidBodyManipulator < Manipulator
         end
       else
         body_ind = ind;
+      end
+    end
+    
+    function [xxdot,dxxdot] = additionalStateDynamics(obj,t,x,u)
+      xxdot=[]; dxxdot=[];
+      for i=1:length(obj.force)
+        if isa(obj.force{i},'RigidBodyElementWithState')
+          if nargout>1
+            [f,df] = obj.force{i}.dynamics(obj,t,x,u);
+            dxxdot = vertcat(dxxdot,df);
+          else
+            f = obj.force{i}.dynamics(obj,t,x,u);
+          end
+          xxdot = vertcat(xxdot,f);
+        end
       end
     end
 
@@ -1947,13 +1958,14 @@ classdef RigidBodyManipulator < Manipulator
               velocities = vertcat(velocities,{[b.jointname,'dot']});
             end
             frame_dims(b.position_num)=i;
-            frame_dims(model.getNumPositions() + b.velocity_num)=i;
+            frame_dims(model.num_positions + b.velocity_num)=i;
           end
         end
+        extra_states={};
         for j=1:length(model.force)
-          if isa(model.force{j},'RigidBodyElementWithState')
-            positions = vertcat(positions,getCoordinateNames(model.force{j}));
-            frame_dims(model.force{j}.position_num)=i;
+          if model.force{j}.robotnum==i && isa(model.force{j},'RigidBodyElementWithState')
+            extra_states = vertcat(extra_states,getCoordinateNames(model.force{j}));
+            frame_dims(model.num_positions + model.num_velocities + model.force{j}.extra_state_num)=i;
           end
         end
         
@@ -1965,7 +1977,15 @@ classdef RigidBodyManipulator < Manipulator
         if numel(model.robot_velocity_frames)<i || ~isequal_modulo_transforms(fr,model.robot_velocity_frames{i}) % let the previous handle stay valid if possible
           model.robot_velocity_frames{i} = fr;
         end
-        fr = MultiCoordinateFrame.constructFrame({model.robot_position_frames{i},model.robot_velocity_frames{i}},[],true);
+        if isempty(extra_states)
+          fr = {};
+        else
+          fr = CoordinateFrame([model.name{i},'ExtraState'],length(extra_states),'x',extra_states);
+        end
+        if numel(model.robot_extra_state_frames)<i || ~isequal_modulo_transforms(fr,model.robot_extra_state_frames{i}) % let the previous handle stay valid if possible
+          model.robot_extra_state_frames{i} = fr;
+        end
+        fr = MultiCoordinateFrame.constructFrame({model.robot_position_frames{i},model.robot_velocity_frames{i},model.robot_extra_state_frames{i}},[],true);
         if numel(model.robot_state_frames)<i || ~isequal_modulo_transforms(fr,model.robot_state_frames{i}) % let the previous handle stay valid if possible
           model.robot_state_frames{i} = fr;
         end
@@ -2607,11 +2627,12 @@ classdef RigidBodyManipulator < Manipulator
       end
 
 
-
       if ~isempty(fe)
         if iscell(fe)
+          % todo: set robotnum?
           model.force = {model.force{:} fe{:}};
         else
+          fe.robotnum = robotnum;
           model.force{end+1} = fe;
         end
       end

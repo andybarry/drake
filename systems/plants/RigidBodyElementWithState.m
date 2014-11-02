@@ -3,15 +3,13 @@ classdef RigidBodyElementWithState < RigidBodyElement
   % at least for now, I can only see them adding positions
   
   methods (Abstract=true)
-    n = getNumPositions(obj);
     names = getCoordinateNames(obj);
-    x0 = getInitialPosition(obj,manip);
+    n = getNumStates(obj);
+    x0 = getInitialState(obj,manip);
     [xdot,df] = dynamics(obj,manip,t,x,u);
   end
   
   properties
-    position_num=[];
-    position_limit_min=[];
-    position_limit_max=[];
+    extra_state_num=[];
   end
 end

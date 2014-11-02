@@ -12,7 +12,7 @@ classdef RigidBodyForceElement < RigidBodyElement
     % B is (nq x nu) matrix which contributes a control-affine term 
     %      + B(q,qd)*u 
     % to the manipulator dynamics
-    [f_ext,B] = computeSpatialForce(obj,manip,q,qd)
+    [f_ext,B] = computeSpatialForce(obj,manip,q,qd,xx)
   end
   
   methods

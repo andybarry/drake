@@ -382,7 +382,7 @@ classdef MultiCoordinateFrame < CoordinateFrame
       if (nargin>1 && zap_empty_frames)
         i=1;
         while (i<=length(frames))  % zap empty frames
-          if (frames{i}.dim<1)
+          if (isempty(frames{i}) || frames{i}.dim<1)
             if any(frame_ids==i) error('bad frame_ids'); end
             frames=frames([1:i-1,i+1:end]);
             frame_ids(frame_ids>i)=frame_ids(frame_ids>i)-1;  % note: written to be ok if frame_ids is empty

@@ -71,8 +71,7 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
       obj.direct_feedthrough_flag = true;
       
       if control_surface_velocity_controlled
-        obj.position_limit_min = obj.control_surface_min_deflection; 
-        obj.position_limit_max = obj.control_surface_max_deflection; 
+        %obj.joint_limits = [ obj.control_surface_min_deflection; obj.control_surface_max_deflection ]; 
         obj.input_limits = [ -inf; inf ];
       else
         obj.input_limits = [ obj.control_surface_min_deflection; obj.control_surface_max_deflection ];
@@ -81,7 +80,7 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
       
     end
     
-    function n = getNumPositions(obj)
+    function n = getNumStates(obj)
       if (obj.control_surface_velocity_controlled)
         n = 1;
       else
@@ -91,13 +90,13 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
     
     function names = getCoordinateNames(obj)
       if (obj.control_surface_velocity_controlled)
-        names={[obj.name,'control_surface_angle']};
+        names={[obj.name,'_control_surface_angle']};
       else
         names = {};
       end
     end
     
-    function q0 = getInitialPosition(obj,manip)
+    function q0 = getInitialState(obj)
       % will only be called if we're velocity controlled
       q0 = 0;
     end
@@ -105,7 +104,7 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
     function [qdot,df] = dynamics(obj,manip,t,x,u)
       % will only be called if we're velocity controlled
       qdot = u(obj.input_num);
-      df = 0*[t;x;u]'; df(1+obj.num_x+obj.input_num) = 1;
+      df = 0*[t;x;u]'; df(1+manip.getNumStates()+obj.input_num) = 1;
     end
     
     function [obj, model] = onCompile(obj, model)
@@ -134,7 +133,7 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
       obj.dfCm_control_surface_du = @(aoa,u) obj.rho * r * (cos(aoa+u).^2 - sin(aoa+u).^2) * control_surface_area;
     end
     
-    function [force, B_force, dforce, dB_force] = computeSpatialForce(obj,manip,q,qd)
+    function [force, B_force, dforce, dB_force] = computeSpatialForce(obj,manip,q,qd,xx)
       % Computes the forces from the wing including the control surface.
       % Returns the force from the wing along with the B matrix which the
       % matrix for a linearized input for the control surface.
@@ -195,7 +194,7 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         
         [fCl,fCd,fCm,dfCl,dfCd,dfCm] = RigidBodyWing.flatplate(obj.rho, control_surface_area, obj.control_surface_chord);
         
-        control_surface_angle = q(obj.position_num);
+        control_surface_angle = xx(obj.extra_state_num);
         
         
         aoa_control_surface = aoa + control_surface_angle;

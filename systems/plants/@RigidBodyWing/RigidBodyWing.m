@@ -414,7 +414,7 @@ classdef RigidBodyWing < RigidBodyForceElement
 
     end %constructor
     
-    function [force, dforce] = computeSpatialForce(obj,manip,q,qd)
+    function [force, dforce] = computeSpatialForce(obj,manip,q,qd,xx)
       nq = size(q,1);
       frame = getFrame(manip,obj.kinframe);
       

@@ -23,7 +23,7 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] ) {
   RigidBodyManipulator *model= (RigidBodyManipulator*) getDrakeMexPointer(prhs[0]);
   
   double *q, *qd=NULL;
-  if (mxGetNumberOfElements(prhs[1])<model->NB)  // can be greater (e.g. control surfaces, but not less)
+  if (mxGetNumberOfElements(prhs[1])!=model->NB)
     mexErrMsgIdAndTxt("Drake:doKinematicsmex:BadInputs", "q must be size %d x 1", model->NB);
   q = mxGetPr(prhs[1]);
   bool b_compute_second_derivatives = (bool) mxGetScalar(prhs[2]);

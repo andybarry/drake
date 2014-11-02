@@ -3,6 +3,7 @@ classdef RigidBodyElement
   
   properties
     param_bindings=struct();   % structure containing msspoly parameterized representations of some properties
+    robotnum = 0;  % this body is associated with a particular robot/object number, named in model.name{objnum} 
   end
   
   methods
