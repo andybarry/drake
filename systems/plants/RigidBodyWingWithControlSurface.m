@@ -249,20 +249,12 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         
         
         % now compute the forces that depend on u
-        % we'd like:
-        % lift = fCl * ( r * u )^2 because (r*u)^2 is the velocity
-        %   compoment added from the moving control surface
-        % drag = fCd * ( r * u )^2
-        % moment = fCm * (r * u )^2
-        %
-        % but we can't do that since we need a linear function in terms of u
-        % so take the linearization around u = 0
 
         r = obj.chord / 2 + obj.control_surface_chord / 2; % TODO: check if this is correct
-
-        f_lift = fCl_surface * r^2;
-        f_drag = fCd_surface * r^2;
-        torque_moment = fCm_surface * r^2;
+        
+        f_lift = obj.dfCl_control_surface_du(aoa, control_surface_angle) * (r^2 + airspeed^2); %TODO: arispeed here is part of the affine term?
+        f_drag = obj.dfCd_control_surface_du(aoa, control_surface_angle) * (r^2 + airspeed^2);
+        torque_moment = obj.dfCm_control_surface_du(aoa, control_surface_angle) * (r^2 * airspeed^2);
 
 
       else
@@ -482,11 +474,15 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
       wing_span = parseParamString(model,robotnum,char(node.getAttribute('span')));
       wing_stall_angle = parseParamString(model,robotnum,char(node.getAttribute('stall_angle')));
       nominal_speed = parseParamString(model,robotnum,char(node.getAttribute('nominal_speed')));
-      visual_geometry_urdf = parseParamString(model,robotnum,char(node.getAttribute('visual_geometry')));
       control_surface_chord_urdf = parseParamString(model,robotnum,char(node.getAttribute('control_surface_chord')));
       control_surface_min_deflection_urdf = parseParamString(model,robotnum,char(node.getAttribute('control_surface_min_deflection')));
       control_surface_max_deflection_urdf = parseParamString(model,robotnum,char(node.getAttribute('control_surface_max_deflection')));
       control_surface_velocity_controlled_urdf = parseParamString(model,robotnum,char(node.getAttribute('control_surface_velocity_controlled')));
+      visual_geometry_urdf = parseParamString(model,robotnum,char(node.getAttribute('visual_geometry')));
+      
+      if isempty(visual_geometry_urdf)
+        visual_geometry_urdf = true;
+      end
       
       [model,this_frame_id] = addFrame(model,RigidBodyFrame(parent,xyz,rpy,[name,'_frame']));
       

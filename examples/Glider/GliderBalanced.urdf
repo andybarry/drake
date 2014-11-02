@@ -44,9 +44,9 @@
   </link>
 
   <force_element name="Wing_force">
-    <wing chord=".177" nominal_speed="7" profile="flat plate" span=".5">
+    <wing chord=".12" nominal_speed="7" profile="flat plate" span="0.7375">
       <parent link="fuselage"/>
-    <origin xyz="-0.0442 0 0" rpy="0 0 0"/>  <!-- want the half-chord to be at zero, but need to put origin at the quarter chord -->
+    <origin xyz="0 0 0" rpy="0 0 0"/>  <!-- want the half-chord to be at zero, but need to put origin at the quarter chord TODO: x=0.0442 for 1/4 chord -->
     </wing>
   </force_element>
   <!--
@@ -62,16 +62,16 @@
       name="elevator_wing"
       profile="flat plate"
       stall_angle="181"
-      span=".21"
-      chord=".07"
+      span="0.334090909"
+      chord="0"
       nominal_speed="7"
-      control_surface_chord="0.07"
-      control_surface_min_deflection="-1.570796"
-      control_surface_max_deflection="1.570796"
+      control_surface_chord="0.044"
+      control_surface_min_deflection="-0.9473"
+      control_surface_max_deflection="0.4463"
       control_surface_velocity_controlled="true">
 
       <parent link="fuselage"/>
-      <origin xyz="-.022 0 0" rpy="0 0 0"/>
+      <origin xyz="-.27 0 0" rpy="0 0 0"/>
     </wing_with_control_surface>
   </force_element>
 </robot>
