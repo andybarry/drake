@@ -41,7 +41,13 @@ classdef Manipulator < DrakeSystem
 
       q = x(1:obj.num_positions);
       v = x(obj.num_positions+(1:obj.num_velocities));
-      xx = x(end+1-obj.num_additional_states:end);
+      if (obj.num_additional_states)
+        % using cell arrays so that xx is an optional argument
+        % (manipulators with no extra state need not implement it)
+        xx = {x(end+1-obj.num_additional_states:end)};
+      else
+        xx={};
+      end
       
       if (nargout>1)
         if ~isempty(obj.position_constraints) || ~isempty(obj.velocity_constraints)
@@ -54,7 +60,7 @@ classdef Manipulator < DrakeSystem
         % If it fails, then it will raise the same exception that I would
         % want to raise for this method, stating that not all outputs were
         % assigned.  (since I can't write dxdot anymore)
-        [H,C,B,dH,dC,dB] = obj.manipulatorDynamics(q,v,xx);
+        [H,C,B,dH,dC,dB] = obj.manipulatorDynamics(q,v,xx{:});
         Hinv = inv(H);
 
         if (obj.num_u>0)
@@ -79,7 +85,7 @@ classdef Manipulator < DrakeSystem
           error('not implemented yet.  but would be easy');
         end
       else
-        [H,C,B] = manipulatorDynamics(obj,q,v,xx);
+        [H,C,B] = manipulatorDynamics(obj,q,v,xx{:});
         Hinv = inv(H);
         if (obj.num_u>0) tau=B*u - C; else tau=-C; end
         tau = tau + computeConstraintForce(obj,q,v,H,tau,Hinv);
