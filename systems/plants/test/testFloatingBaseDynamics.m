@@ -76,19 +76,19 @@ for i=1:100
   valuecheck(Jdot,Jdot2(:,ind));
   
   % check dynamics:
-  [H,C,B] = manipulatorDynamics(m_rpy,q,qd,false);
-  [H2,C2,B2] = manipulatorDynamics(m_ypr_rel,q(ind),qd(ind),false);
+  [H,C,B] = manipulatorDynamics(m_rpy,q,qd,[],false);
+  [H2,C2,B2] = manipulatorDynamics(m_ypr_rel,q(ind),qd(ind),[],false);
   
   valuecheck(H,H2(ind,ind));
   valuecheck(C,C2(ind));
   valuecheck(B,B2(ind,:));
 
-  [H2,C2,B2] = manipulatorDynamics(m_rpy,q,qd,true);
+  [H2,C2,B2] = manipulatorDynamics(m_rpy,q,qd,[],true);
   valuecheck(H,H2);
   valuecheck(C,C2);
   valuecheck(B,B2);
 
-  [H2,C2,B2] = manipulatorDynamics(m_ypr_rel,q(ind),qd(ind),true);
+  [H2,C2,B2] = manipulatorDynamics(m_ypr_rel,q(ind),qd(ind),[],true);
 
   valuecheck(H,H2(ind,ind));
   valuecheck(C,C2(ind));
