@@ -316,6 +316,12 @@ Reynolds number around which we design the aerodynamic coefficients.</xs:documen
             </xs:annotation>
         </xs:attribute>
 
+        <xs:attribute name="control_surface_velocity_controlled" type="xs:boolean" default="false">
+            <xs:annotation>
+                <xs:documentation>Set to true to make the control surface velocity controlled instead of position controlled.  This will add a state to your system (the position of the control surface) and will change your input to be the velocity of the control surface.</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+
     </xs:complexType>
 
     <xs:complexType name="bluff_body">

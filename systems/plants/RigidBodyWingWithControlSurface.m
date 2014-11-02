@@ -129,7 +129,7 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
       % override fCM to accommodate shift in x-axis to aerodynamic center of
       % control surface (note: this is flat plate specific)
       % (lift and drag are uneffected)
-      r = obj.chord / 2 + obj.control_surface_chord / 2;
+      r = obj.chord / 2 + obj.control_surface_chord / 2; % TODO: check if this is correct
       obj.fCm_control_surface = @(aoa,u) obj.rho * r * sin(aoa+u) .* cos(aoa+u) * control_surface_area;
       obj.dfCm_control_surface_du = @(aoa,u) obj.rho * r * (cos(aoa+u).^2 - sin(aoa+u).^2) * control_surface_area;
     end
@@ -193,9 +193,9 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         
         control_surface_area = obj.span .* obj.control_surface_chord;
         
-        [fCl,fCd,fCm,dfCl,dfCd,dfCm] = RigidBodyWing.flatplate(obj.rho, control_surface_area, obj.control_surface_chord)
+        [fCl,fCd,fCm,dfCl,dfCd,dfCm] = RigidBodyWing.flatplate(obj.rho, control_surface_area, obj.control_surface_chord);
         
-        control_surface_angle = TODO_get_from_state_vector
+        control_surface_angle = q(obj.position_num);
         
         
         aoa_control_surface = aoa + control_surface_angle;
@@ -231,6 +231,7 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         
         f_world_frame = [force_x; force_y; force_z];
 
+        frame = getFrame(manip,obj.kinframe);
         f = manip.cartesianForceToSpatialForce(kinsol, frame.body_ind, zeros(3,1), f_world_frame);
 
         force = sparse(6, getNumBodies(manip)) * q(1); % q(1) for taylorvar
@@ -248,9 +249,11 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         % but we can't do that since we need a linear function in terms of u
         % so take the linearization around u = 0
         
-        f_lift = fCl * r^2;
-        f_drag = fCd * r^2;
-        torque_moment = fCm * r^2;
+        r = obj.chord / 2 + obj.control_surface_chord / 2; % TODO: check if this is correct
+        
+        f_lift = fCl_surface * r^2;
+        f_drag = fCd_surface * r^2;
+        torque_moment = fCm_surface * r^2;
         
         
       else
