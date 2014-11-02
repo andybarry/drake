@@ -193,7 +193,7 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         
         control_surface_area = obj.span .* obj.control_surface_chord;
         
-        [fCl,fCd,fCm,dfCl,dfCd,dfCm] = flatplate(obj.rho, control_surface_area, obj.control_surface_chord)
+        [fCl,fCd,fCm,dfCl,dfCd,dfCm] = RigidBodyWing.flatplate(obj.rho, control_surface_area, obj.control_surface_chord)
         
         control_surface_angle = TODO_get_from_state_vector
         

@@ -38,16 +38,14 @@ for i = 1:100
   valuecheck(glider_xdot,urdf_xdot);
 end
 
-  function x7dot = urdf_dynamics(p,x7,phidot)
+  function xdot = urdf_dynamics(p,x,phidot)
     % URDF's are defined with positive pitch = down (y-axis rotation)
     %GliderPlant uses positive pitch = up.
     %because pitch axes are reversed between models--also for elevator(input)
-    x7([3,4,7]) = -x7([3,4,7]);
-    x = [x7; -phidot];
-    u = 0; % u = computeAccel(p,x);
+    x([3,4,7]) = -x([3,4,7]);
+    u = -phidot;
     xdot = p.dynamics(0,x,u);
-    x7dot = xdot(1:7);
-    x7dot([3,4,7]) = -x7dot([3,4,7]);
+    xdot([3,4,7]) = -xdot([3,4,7]);
   end
 
     function u = computeAccel(p, x, vel)
