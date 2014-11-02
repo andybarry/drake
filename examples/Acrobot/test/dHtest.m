@@ -23,9 +23,9 @@ valuecheck(dH_mex,dH_tv);
 
   function [H,dH] = getH_nomex(q,v)
     if (nargout>1)
-      [H,C,B,dH,dC,dB] = p.manipulatorDynamics(q,v,false);
+      [H,C,B,dH,dC,dB] = p.manipulatorDynamics(q,v,[],false);
     else
-      [H,C,B] = p.manipulatorDynamics(q,v,false);
+      [H,C,B] = p.manipulatorDynamics(q,v,[],false);
     end
     H = H(:);
   end

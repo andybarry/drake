@@ -11,7 +11,7 @@ q = rand(p.getNumPositions,1);
 v = rand(p.getNumVelocities,1);
 
 [H_tv,C_tv,B_tv,dH_tv,dC_tv,dB_tv] = geval(3,@p.manipulatorDynamics,q,v,struct('grad_method','taylorvar'));
-[H_mat,C_mat,B_mat,dH_mat,dC_mat,dB_mat] = p.manipulatorDynamics(q,v,false);
+[H_mat,C_mat,B_mat,dH_mat,dC_mat,dB_mat] = p.manipulatorDynamics(q,v,[],false);
 [H_mex,C_mex,B_mex,dH_mex,dC_mex,dB_mex] = geval(3,@p.manipulatorDynamics,q,v);
 valuecheck(H_mat,H_tv);
 valuecheck(C_mat,C_tv);

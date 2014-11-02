@@ -29,7 +29,6 @@ classdef RigidBodyJointSensor < RigidBodySensor
   end
 
   properties
-    robotnum;
     state_mask;
   end
 end
