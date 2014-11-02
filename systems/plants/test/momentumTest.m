@@ -17,12 +17,8 @@ end
 
 x0 = zeros(12,1);
 x0(3) = 15;
-x0(6+1) = randn();
-x0(6+2) = randn();
-x0(6+3) = 10*rand();
-x0(6+4) = 0.5*randn();
-x0(6+5) = 0.5*randn();
-x0(6+6) = 0.5*randn();
+x0(4:6) = uniformlyRandomNonsingularRPY();
+x0(7:12) = 0.02*rand(6,1);
 
   function A = myfun(q)
     % for derivative check
