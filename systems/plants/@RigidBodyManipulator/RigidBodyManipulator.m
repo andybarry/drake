@@ -19,6 +19,7 @@ classdef RigidBodyManipulator < Manipulator
     dim=3;
     terrain;
     num_contact_pairs;
+    num_kinematic_positions=0;
     contact_options; % struct containing options for contact/collision handling
     contact_constraint_id=[];
     frame = [];     % array of RigidBodyFrame objects
@@ -139,7 +140,7 @@ classdef RigidBodyManipulator < Manipulator
       bodies = obj.body;
       nb = length(bodies);
       nv = obj.num_velocities;
-      nq = obj.num_positions;
+      nq = obj.num_kinematic_positions;
       VqInv = zeros(nq, nv) * q(1); % to make TaylorVar work better
 
       if compute_gradient
@@ -661,6 +662,7 @@ classdef RigidBodyManipulator < Manipulator
           model.body(i).velocity_num=0;
         end
       end
+      model.num_kinematic_positions = num_q;
       for i=1:length(model.force)
         if isa(model.force{i},'RigidBodyElementWithState')
           n = getNumPositions(model.force{i});
