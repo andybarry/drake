@@ -300,8 +300,9 @@ classdef Visualizer < DrakeSystem
           % was asked to show velocties on a RigidBodyManipulator, draw forces and torques
           q = x0(1:getNumPositions(visualized_system));
           qd = x0(getNumPositions(visualized_system)+1:getNumPositions(visualized_system)+getNumVelocities(visualized_system));
+          xx = x0(end+1-getNumAdditionalStates(visualized_system):end);
           visualized_system.drawLCMGLGravity(q,obj.gravity_visual_magnitude);
-          visualized_system.drawLCMGLForces(q,qd,obj.gravity_visual_magnitude);
+          visualized_system.drawLCMGLForces(q,qd,xx,obj.gravity_visual_magnitude);
         end
 
       end

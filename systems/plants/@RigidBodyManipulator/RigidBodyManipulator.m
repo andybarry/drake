@@ -1985,7 +1985,7 @@ classdef RigidBodyManipulator < Manipulator
         else
           fr = CoordinateFrame([model.name{i},'ExtraState'],length(extra_states),'x',extra_states);
         end
-        if numel(model.robot_extra_state_frames)<i || ~isequal_modulo_transforms(fr,model.robot_extra_state_frames{i}) % let the previous handle stay valid if possible
+        if numel(model.robot_extra_state_frames)<i || isempty(fr) || ~isequal_modulo_transforms(fr,model.robot_extra_state_frames{i}) % let the previous handle stay valid if possible
           model.robot_extra_state_frames{i} = fr;
         end
         fr = MultiCoordinateFrame.constructFrame({model.robot_position_frames{i},model.robot_velocity_frames{i},model.robot_extra_state_frames{i}},[],true);
