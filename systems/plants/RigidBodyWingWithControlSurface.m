@@ -187,15 +187,6 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
       fCl_surface = obj.fCl_control_surface(aoa, control_surface_angle);
       fCd_surface = obj.fCd_control_surface(aoa, control_surface_angle);
       fCm_surface = obj.fCm_control_surface(aoa, control_surface_angle);
-      
-      if (nargout>3)
-        daoadq = -(wingvel_rel(1)*dwingvel_reldq(3,:)-wingvel_rel(3)*dwingvel_reldq(1,:))/(wingvel_rel(1)^2+wingvel_rel(3)^2);
-        daoadqd = -(wingvel_rel(1)*dwingvel_reldqd(3,:)-wingvel_rel(3)*dwingvel_reldqd(1,:))/(wingvel_rel(1)^2+wingvel_rel(3)^2);
-
-        dfCl_surface_dq = obj.fCl_control_surface(aoa, control_surface_angle) * daoadq;
-        dfCd_surface_dq = obj.fCd_control_surface(aoa, control_surface_angle) * daoadq;
-        dfCm_surface_dq = obj.fCm_control_surface(aoa, control_surface_angle) * daoadq;
-      end
 
 
       lift_force = fCl_surface * airspeed * airspeed;
@@ -249,17 +240,36 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         
         
         % now compute the forces that depend on u
-
-        r = obj.chord / 2 + obj.control_surface_chord / 2; % TODO: check if this is correct
         
-        f_lift = obj.dfCl_control_surface_du(aoa, control_surface_angle) * (r^2 + airspeed^2); %TODO: arispeed here is part of the affine term?
-        f_drag = obj.dfCd_control_surface_du(aoa, control_surface_angle) * (r^2 + airspeed^2);
-        torque_moment = obj.dfCm_control_surface_du(aoa, control_surface_angle) * (r^2 * airspeed^2);
+        r = obj.chord / 2 + obj.control_surface_chord / 2;
+        v_air_x = wingvel_rel(1);
+        v_air_z = wingvel_rel(3);
+        
+        % linearize lift about u = 0, where u is a velocity input
+        
+        theta = control_surface_angle;
+        rho = obj.rho;
+        S = obj.control_surface_chord * obj.span;
+        cs_vel = 0; % linearize about control surface velocity = 0
+        
+        flatplate_dlift_du = (rho * r * S * (-3 * r^2 * cs_vel^2 * v_air_x * cos(3*theta) + 2*v_air_z * ...
+          (3*r^2*cs_vel^2 + 2*v_air_z^2 + 3*r^2 * cs_vel^2 * cos(2*theta)) * sin(theta) ...
+          + cos(theta) * (3 * r^2 * cs_vel^2 * v_air_x + 4 * v_air_x^3 + ...
+          4 * r * cs_vel * (r^2 * cs_vel^2 + 3 * (v_air_x^2 + v_air_z^2)) * ...
+          sin(theta))))/(4 * ((v_air_z + r * cs_vel * cos(theta))^2 + ...
+          (v_air_x + r * cs_vel * sin(theta))^2)^(3/2));
+
+        
+        flatplate_ddrag_du = 2 * rho * S * r * sin(theta) * (r * cs_vel * sin(theta) + v_air_z);
+        
+        df_lift = flatplate_dlift_du;
+        df_drag = flatplate_ddrag_du;
+        dtorque_moment = 0; % todo?
 
 
       else
 
-        % linearize about u = 0
+        % linearize about u = 0 where u is the position input
         u=0;
         % Cl = Cl_linear*u + Cl_affine  (but the affine terms are already
         % applied from above)
@@ -306,9 +316,9 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         % end_debug
         %}
 
-        f_lift = Cl_linear * airspeed*airspeed;
-        f_drag = Cd_linear * airspeed*airspeed;
-        torque_moment = Cm_linear * airspeed * airspeed;
+        df_lift = Cl_linear * airspeed*airspeed;
+        df_drag = Cd_linear * airspeed*airspeed;
+        dtorque_moment = Cm_linear * airspeed * airspeed;
         
       end
       
@@ -320,9 +330,9 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
       [~, J] = forwardKin(manip, kinsol, obj.kinframe, zeros(3,1));
 
       
-      B_lift = f_lift * J' * lift_axis_in_world_frame;
+      B_lift = df_lift * J' * lift_axis_in_world_frame;
 
-      B_drag = f_drag * J' * drag_axis_in_world_frame;
+      B_drag = df_drag * J' * drag_axis_in_world_frame;
       
       
       % use two forces in opposite directions one meter away to create a
@@ -342,8 +352,8 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
       moment_axis_in_world_frame2 = forwardKin(manip, kinsol, obj.kinframe, moment_direction_in_body_frame2);
       moment_axis_in_world_frame2 = moment_axis_in_world_frame2 - moment_location_in_world_frame2;
       
-      B_moment = torque_moment * 0.5 * J1' * moment_axis_in_world_frame1 ...
-       + torque_moment * 0.5 * J2' * moment_axis_in_world_frame2;
+      B_moment = dtorque_moment * 0.5 * J1' * moment_axis_in_world_frame1 ...
+       + dtorque_moment * 0.5 * J2' * moment_axis_in_world_frame2;
       
       B_force(:, obj.input_num) = B_lift + B_drag + B_moment; 
       
