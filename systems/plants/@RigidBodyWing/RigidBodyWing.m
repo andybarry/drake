@@ -638,12 +638,12 @@ classdef RigidBodyWing < RigidBodyForceElement
       dfCd = @(alpha) 2*cos(alpha).*sin(alpha)*rho*area;
       % version 1: forces at the mean chord produce a moment at the quarter
       % chord
-      r = chord / 4;
-      fCm = @(aoa) r*sin(aoa).*cos(aoa)*rho*area;
-      dfCm = @(aoa) r*(cos(aoa).^2 - sin(aoa).^2)*rho*area;
+%      r = chord / 4;
+%      fCm = @(aoa) r*sin(aoa).*cos(aoa)*rho*area;
+%       dfCm = @(aoa) r*(cos(aoa).^2 - sin(aoa).^2)*rho*area;
       % version 2: moment coefficient is always zero
-      % fCm = @(alpha) 0;  % the urdf doc says stall angle is ignored for flat plate
-      % dfCm = @(alpha) 0;
+       fCm = @(alpha) 0;  % the urdf doc says stall angle is ignored for flat plate
+       dfCm = @(alpha) 0;
     end
       
     function [ wingvel_struct, wingvel_dstruct ]= computeWingVelocity(kinframe, manip, q, qd, kinsol)

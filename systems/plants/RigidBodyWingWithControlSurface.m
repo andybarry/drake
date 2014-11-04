@@ -136,6 +136,7 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
       % @retval B_force B matrix containing the linearized component of the
       %   force from the input (from the control surface's deflection)
       
+      
       % first, call the parent class's computeSpatialForce to get the
       % u-invariant parts from the part of the wing that is not a control
       % surface
@@ -179,7 +180,7 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
       % plate at u = 0.)
 
       if obj.control_surface_velocity_controlled
-        control_surface_angle = xx(obj.extra_state_num);      
+        control_surface_angle = xx(obj.extra_state_num);
       else
         control_surface_angle = 0;
       end
@@ -189,53 +190,16 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
       fCm_surface = obj.fCm_control_surface(aoa, control_surface_angle);
 
 
-      lift_force = fCl_surface * airspeed * airspeed;
-      drag_force = fCd_surface * airspeed * airspeed;
+      %lift_force = fCl_surface * airspeed * airspeed;
+      %drag_force = fCd_surface * airspeed * airspeed;
 
-      torque_moment =  fCm_surface * airspeed * airspeed;
-
-      lift_vector = lift_force * lift_axis_in_world_frame;
-      drag_vector = drag_force * drag_axis_in_world_frame;
-
-      % moment torque is around the wing's Y axis
-      % build two forces (a couple) around the Y axis to express it
-      % these forces should be on the X (forward) axis of the wing
-
-      moment_location_in_body_frame1 = [1; 0; 0];
-      moment_location_in_body_frame2 = [-1; 0; 0];
-
-      moment_direction_in_body_frame1 = [0; 0; 1];
-      moment_direction_in_body_frame2 = [0; 0; -1];
-
-      [moment_location_in_world_frame1, J1] = forwardKin(manip, kinsol, obj.kinframe, moment_location_in_body_frame1);
-      moment_axis_in_world_frame1 = forwardKin(manip, kinsol, obj.kinframe, moment_direction_in_body_frame1);
-      moment_axis_in_world_frame1 = moment_axis_in_world_frame1 - moment_location_in_world_frame1;
-
-      [moment_location_in_world_frame2, J2] = forwardKin(manip, kinsol, obj.kinframe, moment_location_in_body_frame2);
-      moment_axis_in_world_frame2 = forwardKin(manip, kinsol, obj.kinframe, moment_direction_in_body_frame2);
-      moment_axis_in_world_frame2 = moment_axis_in_world_frame2 - moment_location_in_world_frame2;
-
-      moment_vector1 = torque_moment * moment_axis_in_world_frame1;
-      moment_vector2 = torque_moment * moment_axis_in_world_frame2;
       
-      x_unit = [1; 0; 0];
-      y_unit = [0; 1; 0];
-      z_unit = [0; 0; 1];
 
-      force_x = dot(lift_vector, x_unit) + dot(drag_vector, x_unit) + dot(moment_vector1, x_unit) + dot(moment_vector2, x_unit);
-      force_y = dot(lift_vector, y_unit) + dot(drag_vector, y_unit) + dot(moment_vector1, y_unit) + dot(moment_vector2, x_unit);
-      force_z = dot(lift_vector, z_unit) + dot(drag_vector, z_unit) + dot(moment_vector1, z_unit) + dot(moment_vector2, x_unit);
-
-      f_world_frame = [force_x; force_y; force_z];
-
-      frame = getFrame(manip,obj.kinframe);
-      f = manip.cartesianForceToSpatialForce(kinsol, frame.body_ind, zeros(3,1), f_world_frame);
-
-      force(:, frame.body_ind) = force(:, frame.body_ind) + f; % add the forces with the rest of the wing
+      
 
 
       if obj.control_surface_velocity_controlled
-        warning('dforce does not include control surface stuff yet');
+%        warning('dforce does not include control surface stuff yet');
         
         
         
@@ -250,20 +214,59 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         theta = control_surface_angle;
         rho = obj.rho;
         S = obj.control_surface_chord * obj.span;
-        cs_vel = 0; % linearize about control surface velocity = 0
         
-        flatplate_dlift_du = (rho * r * S * (-3 * r^2 * cs_vel^2 * v_air_x * cos(3*theta) + 2*v_air_z * ...
-          (3*r^2*cs_vel^2 + 2*v_air_z^2 + 3*r^2 * cs_vel^2 * cos(2*theta)) * sin(theta) ...
-          + cos(theta) * (3 * r^2 * cs_vel^2 * v_air_x + 4 * v_air_x^3 + ...
-          4 * r * cs_vel * (r^2 * cs_vel^2 + 3 * (v_air_x^2 + v_air_z^2)) * ...
-          sin(theta))))/(4 * ((v_air_z + r * cs_vel * cos(theta))^2 + ...
-          (v_air_x + r * cs_vel * sin(theta))^2)^(3/2));
+        
+%         flatplate_dlift_du = (rho * r * S * (-3 * r^2 * cs_vel^2 * v_air_x * cos(3*theta) + 2*v_air_z * ...
+%           (3*r^2*cs_vel^2 + 2*v_air_z^2 + 3*r^2 * cs_vel^2 * cos(2*theta)) * sin(theta) ...
+%           + cos(theta) * (3 * r^2 * cs_vel^2 * v_air_x + 4 * v_air_x^3 + ...
+%           4 * r * cs_vel * (r^2 * cs_vel^2 + 3 * (v_air_x^2 + v_air_z^2)) * ...
+%           sin(theta))))/(4 * ((v_air_z + r * cs_vel * cos(theta))^2 + ...
+%           (v_air_x + r * cs_vel * sin(theta))^2)^(3/2));
+%
+%       flatplate_ddrag_du = 2 * rho * S * r * sin(theta) * (r * cs_vel * sin(theta) + v_air_z);
+        
+        % debug derivative with numerical differentiation and graphs
+        v_x = @(u) r * u * cos(pi/2-theta);
+        v_z = @(u) r * u * sin(pi/2-theta);
+        
+        full_v = @(u) sqrt ( (v_x(u) + v_air_x)^2 + (v_z(u) + v_air_z)^2 );
+        
+        get_aoa = @(u) -atan2((v_air_z + v_z(u)), (v_air_x + v_x(u))) + theta;
+        
+        lift_with_vel_u = @(u) rho * S * sin( get_aoa(u) ) * cos( get_aoa(u) ) * full_v(u)^2;
+        drag_with_vel_u = @(u) rho * S * (sin( get_aoa(u) ))^2 * full_v(u)^2;
+        
+        % we have a torque because the center of this entire surface is not the center
+        % of the control surface part
+        
+        
+        
+        
+%         count = 1;
+%         u_range = -100:.1:100;
+%         for u_in = u_range
+%           lift_range(count) = debug_lift(u_in);
+%           count = count + 1;
+%         end
+%         
+%         plot(u_range, lift_range);
+%         hold on
+        
 
+        linearization_point = 0; % linearize about control surface velocity = 0
         
-        flatplate_ddrag_du = 2 * rho * S * r * sin(theta) * (r * cs_vel * sin(theta) + v_air_z);
+        numerical_diff_lift = (lift_with_vel_u(linearization_point + .01) - lift_with_vel_u(linearization_point -.01)) / .02;
+        numerical_diff_drag = (drag_with_vel_u(linearization_point + .01) - drag_with_vel_u(linearization_point -.01)) / .02;
+%         plot(u_range, u_range*numerical_diff, 'r');
+%         plot(u_range, u_range*flatplate_dlift_du, 'k');
+
+        lift_force = lift_with_vel_u(linearization_point);
+        drag_force = drag_with_vel_u(linearization_point);
         
-        df_lift = flatplate_dlift_du;
-        df_drag = flatplate_ddrag_du;
+        
+        
+        df_lift = numerical_diff_lift;
+        df_drag = numerical_diff_drag;
         dtorque_moment = 0; % todo?
 
 
@@ -321,6 +324,50 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         dtorque_moment = Cm_linear * airspeed * airspeed;
         
       end
+      
+      torque_moment =  0;%fCm_surface * airspeed * airspeed;
+
+      lift_vector = lift_force * lift_axis_in_world_frame;
+      drag_vector = drag_force * drag_axis_in_world_frame;
+
+      % moment torque is around the wing's Y axis
+      % build two forces (a couple) around the Y axis to express it
+      % these forces should be on the X (forward) axis of the wing
+
+      moment_location_in_body_frame1 = [1; 0; 0];
+      moment_location_in_body_frame2 = [-1; 0; 0];
+
+      moment_direction_in_body_frame1 = [0; 0; 1];
+      moment_direction_in_body_frame2 = [0; 0; -1];
+
+      [moment_location_in_world_frame1, J1] = forwardKin(manip, kinsol, obj.kinframe, moment_location_in_body_frame1);
+      moment_axis_in_world_frame1 = forwardKin(manip, kinsol, obj.kinframe, moment_direction_in_body_frame1);
+      moment_axis_in_world_frame1 = moment_axis_in_world_frame1 - moment_location_in_world_frame1;
+
+      [moment_location_in_world_frame2, J2] = forwardKin(manip, kinsol, obj.kinframe, moment_location_in_body_frame2);
+      moment_axis_in_world_frame2 = forwardKin(manip, kinsol, obj.kinframe, moment_direction_in_body_frame2);
+      moment_axis_in_world_frame2 = moment_axis_in_world_frame2 - moment_location_in_world_frame2;
+
+      moment_vector1 = torque_moment * moment_axis_in_world_frame1;
+      moment_vector2 = torque_moment * moment_axis_in_world_frame2;
+      
+      x_unit = [1; 0; 0];
+      y_unit = [0; 1; 0];
+      z_unit = [0; 0; 1];
+
+      force_x = dot(lift_vector, x_unit) + dot(drag_vector, x_unit) + dot(moment_vector1, x_unit) + dot(moment_vector2, x_unit);
+      force_y = dot(lift_vector, y_unit) + dot(drag_vector, y_unit) + dot(moment_vector1, y_unit) + dot(moment_vector2, x_unit);
+      force_z = dot(lift_vector, z_unit) + dot(drag_vector, z_unit) + dot(moment_vector1, z_unit) + dot(moment_vector2, x_unit);
+
+      f_world_frame = [force_x; force_y; force_z];
+
+      frame = getFrame(manip,obj.kinframe);
+      
+      location_of_forces_relative_to_parent_origin = frame.T(1:3,4) - [obj.chord/2; 0; 0] - [r * cos(theta); 0; r * sin(theta) ];
+      
+      f = manip.cartesianForceToSpatialForce(kinsol, frame.body_ind, location_of_forces_relative_to_parent_origin, f_world_frame);
+      
+      force(:, frame.body_ind) = force(:, frame.body_ind) + f; % add the forces with the rest of the wing
       
       % initalize B
       B_force = manip.B*0*q(1);
