@@ -26,28 +26,45 @@ p = PlanarRigidBodyManipulator('GliderBalanced.urdf', options); % Planar
 
 p2 = RigidBodyManipulator('GliderBalanced.urdf', options);
 v = p2.constructVisualizer();
+
+% first check with u = 0 since that should be basically perfect
+% (no loss in the linearization from B*u)
+
 %    [X Z Pitch El Vx Vz PitDot Velev]
-% for i = 1:100
-%   u0 = rand(1)-.5;
-%   pitch = rand(1)-.5;
-%   phi = rand(1)-.5;
-%   xvel = rand(1)*3+4;
-%   zvel = rand(1)*2-1;
-%   pitchdot = rand(1)-.5;
-  u0 = 0;
-  pitch = 0;
-  phi = 0;
-  xvel = 4;
-  zvel = 0;
-  pitchdot = 0.5;
+for i = 1:100
+  u0 = 0;%rand(1)-.5;
+  pitch = rand(1)-.5;
+  phi = rand(1)-.5;
+  xvel = rand(1)*3+4;
+  zvel = rand(1)*2-1;
+  pitchdot = rand(1)-.5;
   x = [0 0   pitch   phi  xvel  zvel    pitchdot]';
   glider_xdot = gp.dynamics(0,x,u0)
   
   %urdf_xdot = urdf_dynamics_planar(p,x,u0)
   urdf_xdot = urdf_dynamics_3d(p2,x,u0)
   
-  valuecheck(urdf_xdot,glider_xdot);
-%end
+  valuecheck(urdf_xdot,glider_xdot, 1e-7);
+end
+
+% now let u float as well, but we have to have decreased tolerance
+
+for i = 1:100
+  u0 = rand(1)-.5;
+  pitch = rand(1)-.5;
+  phi = rand(1)-.5;
+  xvel = rand(1)*3+4;
+  zvel = rand(1)*2-1;
+  pitchdot = rand(1)-.5;
+  x = [0 0   pitch   phi  xvel  zvel    pitchdot]';
+  glider_xdot = gp.dynamics(0,x,u0)
+  
+  %urdf_xdot = urdf_dynamics_planar(p,x,u0)
+  urdf_xdot = urdf_dynamics_3d(p2,x,u0)
+  i
+  valuecheck(urdf_xdot,glider_xdot, .5);
+end
+
   function xdot = urdf_dynamics_3d(p, x, phidot)
     % URDF's are defined with positive pitch = down (y-axis rotation)
     %GliderPlant uses positive pitch = up.
@@ -95,7 +112,7 @@ v = p2.constructVisualizer();
     elevdot = xdot3d(13);
     
     
-    xdot = [xdot; zdot; -pitchdot_3d; elevdot; xddot; zddot; -pitchddot ];
+    xdot = [xdot; zdot; -pitchdot_3d; -elevdot; xddot; zddot; -pitchddot ];
     
     
   end

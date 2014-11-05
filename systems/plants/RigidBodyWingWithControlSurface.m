@@ -144,31 +144,6 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
       [force, dforce] = computeSpatialForce@RigidBodyWing(obj, manip, q, qd); 
       
       kinsol = doKinematics(manip,q,true,true,qd);
-      
-      
-      % get the coefficients for this point in state space
-      
-      wingvel_struct = RigidBodyWing.computeWingVelocity(obj.kinframe, manip, q, qd, kinsol);
-      wingvel_rel = RigidBodyWing.computeWingVelocityRelative(obj.kinframe, manip, kinsol, wingvel_struct);
-      
-      wingvel_world_xz = wingvel_struct.wingvel_world_xz;
-      wingYunit = wingvel_struct.wingYunit;
-      
-      airspeed = norm(wingvel_world_xz);
-      
-      aoa = -atan2(wingvel_rel(3),wingvel_rel(1));
-      
-      % lift is defined as the force perpendicular to the direction of
-      % airflow, so the lift axis in the body frame is the axis
-      % perpendicular to wingvel_world_xz
-      % We can get this vector by rotating wingvel_world_xz by 90 deg:
-      % cross(wingvel_world_xz, wingYunit)
-      
-      lift_axis_in_world_frame = cross(wingvel_world_xz, wingYunit);
-      lift_axis_in_world_frame = lift_axis_in_world_frame / norm(lift_axis_in_world_frame);
-      
-      % drag axis is the opposite of the x axis of the wing velocity
-      drag_axis_in_world_frame = -wingvel_world_xz / norm(wingvel_world_xz);
  
       
       % compute the u-invariant contribution from the control surface
@@ -185,23 +160,10 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         control_surface_angle = 0;
       end
 
-      fCl_surface = obj.fCl_control_surface(aoa, control_surface_angle);
-      fCd_surface = obj.fCd_control_surface(aoa, control_surface_angle);
-      fCm_surface = obj.fCm_control_surface(aoa, control_surface_angle);
-
-
-      %lift_force = fCl_surface * airspeed * airspeed;
-      %drag_force = fCd_surface * airspeed * airspeed;
-
-      
-
-      
-
 
       if obj.control_surface_velocity_controlled
 %        warning('dforce does not include control surface stuff yet');
         
-
         % get the airspeed for the center of this control surface since we
         % know its deflection
         r = obj.chord / 2 + obj.control_surface_chord / 2;
@@ -209,21 +171,27 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         center_of_surface = [obj.chord/2; 0; 0] - [r * cos(theta); 0; r * sin(theta) ];
         
         wingvel_struct2 = RigidBodyWing.computeWingVelocity(obj.kinframe, manip, q, qd, kinsol, center_of_surface);
-        wingvel_rel2 = RigidBodyWing.computeWingVelocityRelative(obj.kinframe, manip, kinsol, wingvel_struct2);
+        wingvel_rel_cs = RigidBodyWing.computeWingVelocityRelative(obj.kinframe, manip, kinsol, wingvel_struct2);
         
+        wingvel_world_xz = wingvel_struct2.wingvel_world_xz;
+        wingYunit = wingvel_struct2.wingYunit;
+        
+        lift_axis_in_world_frame = cross(wingvel_world_xz, wingYunit);
+        lift_axis_in_world_frame = lift_axis_in_world_frame / norm(lift_axis_in_world_frame);
+
+        % drag axis is the opposite of the x axis of the wing velocity
+        drag_axis_in_world_frame = -wingvel_world_xz / norm(wingvel_world_xz);
         
         % now compute the forces that depend on u
         
-        
-        v_air_x = wingvel_rel2(1);
-        v_air_z = wingvel_rel2(3);
+        v_air_x = wingvel_rel_cs(1);
+        v_air_z = wingvel_rel_cs(3);
         
         % linearize lift about u = 0, where u is a velocity input
         
         
         rho = obj.rho;
         S = obj.control_surface_chord * obj.span;
-        pitch_dot = 0;
         
 %         flatplate_dlift_du = (rho * r * S * (-3 * r^2 * cs_vel^2 * v_air_x * cos(3*theta) + 2*v_air_z * ...
 %           (3*r^2*cs_vel^2 + 2*v_air_z^2 + 3*r^2 * cs_vel^2 * cos(2*theta)) * sin(theta) ...
@@ -235,20 +203,22 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
 %       flatplate_ddrag_du = 2 * rho * S * r * sin(theta) * (r * cs_vel * sin(theta) + v_air_z);
         
         % debug derivative with numerical differentiation and graphs
-        v_x = @(u) r * (u + pitch_dot) * cos(pi/2-theta);
-        v_z = @(u) r * (u + pitch_dot) * sin(pi/2-theta);
+        v_x = @(u) r * (u) * cos(pi/2-theta);
+        v_z = @(u) r * (u) * sin(pi/2-theta);
         
         full_v = @(u) sqrt ( (v_x(u) + v_air_x)^2 + (v_z(u) + v_air_z)^2 );
         
-        get_aoa = @(u) -atan2((v_air_z + v_z(u)), (v_air_x + v_x(u))) + theta;
+        % angle of attack for the control surface, including extra airspeed
+        % from pitch-dot's contribution to the elevator
+        %
+        % NOTE: this is were we will lose accuracy because because we are going to have to
+        % linearize about u = 0 instead of using the real atan2 value with
+        % u in it.
+        aoa_cs = @(u) -atan2((v_air_z + v_z(u)), (v_air_x + v_x(u))) + theta;
         
-        lift_with_vel_u = @(u) rho * S * sin( get_aoa(u) ) * cos( get_aoa(u) ) * full_v(u)^2;
-        drag_with_vel_u = @(u) rho * S * (sin( get_aoa(u) ))^2 * full_v(u)^2;
-        
-        % we have a torque because the center of this entire surface is not the center
-        % of the control surface part
-        
-        
+        lift_with_vel_u_cs = @(u) rho * S * sin( aoa_cs(u) ) * cos( aoa_cs(u) ) * full_v(u)^2;
+        drag_with_vel_u_cs = @(u) rho * S * (sin( aoa_cs(u) ))^2 * full_v(u)^2;
+
         
         
 %         count = 1;
@@ -263,14 +233,16 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         
 
         linearization_point = 0; % linearize about control surface velocity = 0
+        diff_amount = 0.00001;
         
-        numerical_diff_lift = (lift_with_vel_u(linearization_point + .01) - lift_with_vel_u(linearization_point -.01)) / .02;
-        numerical_diff_drag = (drag_with_vel_u(linearization_point + .01) - drag_with_vel_u(linearization_point -.01)) / .02;
+        numerical_diff_lift = (lift_with_vel_u_cs(linearization_point + diff_amount) - lift_with_vel_u_cs(linearization_point - diff_amount)) / (diff_amount*2);
+        numerical_diff_drag = (drag_with_vel_u_cs(linearization_point + diff_amount) - drag_with_vel_u_cs(linearization_point - diff_amount)) / (diff_amount*2);
 %         plot(u_range, u_range*numerical_diff, 'r');
 %         plot(u_range, u_range*flatplate_dlift_du, 'k');
 
-        lift_force = lift_with_vel_u(linearization_point);
-        drag_force = drag_with_vel_u(linearization_point);
+        
+        lift_force = lift_with_vel_u_cs(linearization_point);
+        drag_force = drag_with_vel_u_cs(linearization_point);
         
         
         
@@ -280,6 +252,30 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
 
 
       else
+
+        % get the coefficients for this point in state space
+
+        wingvel_struct = RigidBodyWing.computeWingVelocity(obj.kinframe, manip, q, qd, kinsol);
+        wingvel_rel = RigidBodyWing.computeWingVelocityRelative(obj.kinframe, manip, kinsol, wingvel_struct);
+
+        wingvel_world_xz = wingvel_struct.wingvel_world_xz;
+        wingYunit = wingvel_struct.wingYunit;
+
+        airspeed = norm(wingvel_world_xz);
+
+        aoa = -atan2(wingvel_rel(3),wingvel_rel(1));
+
+        % lift is defined as the force perpendicular to the direction of
+        % airflow, so the lift axis in the body frame is the axis
+        % perpendicular to wingvel_world_xz
+        % We can get this vector by rotating wingvel_world_xz by 90 deg:
+        % cross(wingvel_world_xz, wingYunit)
+
+        lift_axis_in_world_frame = cross(wingvel_world_xz, wingYunit);
+        lift_axis_in_world_frame = lift_axis_in_world_frame / norm(lift_axis_in_world_frame);
+
+        % drag axis is the opposite of the x axis of the wing velocity
+        drag_axis_in_world_frame = -wingvel_world_xz / norm(wingvel_world_xz);
 
         % linearize about u = 0 where u is the position input
         u=0;
@@ -383,7 +379,7 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
       
 
       % position of origin
-      [~, J] = forwardKin(manip, kinsol, obj.kinframe, zeros(3,1));
+      [~, J] = forwardKin(manip, kinsol, obj.kinframe, [-r*cos(theta); 0; -r*sin(theta)]);
 
       
       B_lift = df_lift * J' * lift_axis_in_world_frame;
