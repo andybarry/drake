@@ -18,6 +18,8 @@ tmp = addpathTemporary(fullfile(pwd,'..'));
 
 gp = GliderPlant();
 
+gp_lu = GliderPlantLinearizedU();
+
 %disp('constructing a Planar glider')
 options.floating = true;
 %p = TimeSteppingRigidBodyManipulator('Glider.URDF',.001, options);
@@ -30,30 +32,35 @@ v = p2.constructVisualizer();
 % (no loss in the linearization from B*u)
 
 %    [X Z Pitch El Vx Vz PitDot Velev]
-% 
-%   u0 = 10;%rand(1)-.5;
-%   pitch =0;
-%   phi = 0;
-%   xvel = 3+4;
-%   zvel = 0;
-%   pitchdot = 0;
-%   x = [0 0   pitch   phi  xvel  zvel    pitchdot]';
-%   glider_xdot = gp.dynamics(0,x,u0);
-%   
-%   %urdf_xdot = urdf_dynamics_planar(p,x,u0);
-%   %valuecheck(urdf_xdot,glider_xdot, 1e-7);
-%   
-%   urdf_xdot_3d = urdf_dynamics_3d(p2,x,u0);
-%   
-%   
-%   glider_xdot - urdf_xdot_3d
-%   
-%   valuecheck(urdf_xdot_3d,glider_xdot, 1e-7);
-%   
-% return
 
-for i = 1:100
-  u0 = 0;%rand(1)-.5;
+  u0 = 1;%rand(1)-.5;
+  pitch = 0;
+  phi = 0.5;
+  xvel = 3+4;
+  zvel = 0;
+  pitchdot = 0;
+  x = [0 0   pitch   phi  xvel  zvel    pitchdot]';
+  %glider_xdot = gp.dynamics(0,x,u0)
+  
+  glider_lu_xdot = gp_lu.dynamics(0,x,u0);
+  
+  %urdf_xdot = urdf_dynamics_planar(p,x,u0);
+  %valuecheck(urdf_xdot,glider_xdot, 1e-7);
+  
+  urdf_xdot_3d = urdf_dynamics_3d(p2,x,u0);
+  
+  
+  %glider_xdot - urdf_xdot_3d
+  
+  valuecheck(urdf_xdot_3d,glider_lu_xdot, 1e-7);
+  
+return
+
+
+fprintf('Testing');
+
+for i = 1:80
+  u0 = 10;%rand(1)-.5;
   pitch = rand(1)-.5;
   phi = rand(1)-.5;
   xvel = rand(1)*3+4;
@@ -67,8 +74,9 @@ for i = 1:100
   
   urdf_xdot_3d = urdf_dynamics_3d(p2,x,u0);
   valuecheck(urdf_xdot_3d,glider_xdot, 1e-7);
-  
+  fprintf('.');
 end
+disp(' passed.');
 
 
 % now let u float as well, but we have to have decreased tolerance
@@ -82,11 +90,19 @@ for i = 1:100
   x = [0 0   pitch   phi  xvel  zvel    pitchdot]';
   glider_xdot = gp.dynamics(0,x,u0);
   
+  glider_xdot_lu = gp_lu.dynamics(0, x, u0);
+  
   %urdf_xdot = urdf_dynamics_planar(p,x,u0);
   %valuecheck(urdf_xdot,glider_xdot, .5);
   
   urdf_xdot_3d = urdf_dynamics_3d(p2,x,u0);
   valuecheck(urdf_xdot_3d,glider_xdot, .5);
+  
+  
+  valuecheck(urdf_xdot_3d, glider_xdot_lu, 1e-7);
+  
+  
+  
 end
 
   function xdot = urdf_dynamics_3d(p, x, phidot)

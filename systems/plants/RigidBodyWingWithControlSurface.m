@@ -174,7 +174,7 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         % know its deflection
         
         
-        center_of_surface = [obj.chord/2; 0; 0] - [r * cos(theta); 0; r * sin(theta) ];
+        center_of_surface = [-obj.chord/2; 0; 0] + [-r * cos(theta); 0; -r * sin(theta) ];
         
         wingvel_struct2 = RigidBodyWing.computeWingVelocity(obj.kinframe, manip, q, qd, kinsol, center_of_surface);
         wingvel_rel_cs = RigidBodyWing.computeWingVelocityRelative(obj.kinframe, manip, kinsol, wingvel_struct2);
@@ -238,15 +238,27 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         dtorque_moment = 0; % todo?
         
         % compute lift and drag axes in world frame
-        v_world = forwardKin(manip, kinsol, obj.kinframe, [v_x(linearization_point); 0; v_z(linearization_point)]);
         v_world_origin = forwardKin(manip, kinsol, obj.kinframe, zeros(3,1) );
-        v_world = v_world - v_world_origin;
+        v_world_helper = @(u) forwardKin(manip, kinsol, obj.kinframe, [v_x(u); 0; v_z(u)]);
+        v_world = @(u) v_world_helper(u) - v_world_origin;
         
-        lift_axis_in_world_frame = cross(v_world, wingYunit);
+        % see comment about lift axis below to understand why we use a
+        % cross product here
+        lift_axis_in_world_frame = cross(v_world(linearization_point), wingYunit);
         lift_axis_in_world_frame = lift_axis_in_world_frame / norm(lift_axis_in_world_frame);
 
         % drag axis is the opposite of the x axis of the wing velocity
-        drag_axis_in_world_frame = -v_world / norm(v_world);
+        drag_axis_in_world_frame = -v_world(linearization_point)/ norm(v_world(linearization_point));
+        
+        df_lift_axis1 = cross(v_world(linearization_point + diff_amount), wingYunit) / norm( cross(v_world(linearization_point + diff_amount), wingYunit));
+        df_lift_axis2 = cross(v_world(linearization_point - diff_amount), wingYunit) / norm( cross(v_world(linearization_point - diff_amount), wingYunit));
+        
+        df_lift_axis = (df_lift_axis1 - df_lift_axis2 ) / (diff_amount*2);
+        
+        df_drag_axis1 = -v_world(linearization_point + diff_amount )/ norm(v_world(linearization_point + diff_amount));
+        df_drag_axis2 = -v_world(linearization_point - diff_amount )/ norm(v_world(linearization_point - diff_amount));
+        
+        df_drag_axis = (df_drag_axis1 - df_drag_axis2 ) / (diff_amount*2);
 
       else
 
@@ -263,7 +275,7 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         aoa = -atan2(wingvel_rel(3),wingvel_rel(1));
 
         % lift is defined as the force perpendicular to the direction of
-        % airflow, so the lift axis in the body frame is the axis
+        % airflow, so the lift axis in the world frame is the axis
         % perpendicular to wingvel_world_xz
         % We can get this vector by rotating wingvel_world_xz by 90 deg:
         % cross(wingvel_world_xz, wingYunit)
@@ -378,12 +390,15 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
       
 
       % position of origin
-      [~, J] = forwardKin(manip, kinsol, obj.kinframe, [-r*cos(theta); 0; -r*sin(theta)]);
+      [~, J] = forwardKin(manip, kinsol, obj.kinframe, [-obj.chord/2; 0; 0] + [-r*cos(theta); 0; -r*sin(theta)]);
 
       
-      B_lift = df_lift * J' * lift_axis_in_world_frame;
+      B_lift = df_lift * J' * lift_axis_in_world_frame + lift_force * J' * df_lift_axis;
 
-      B_drag = df_drag * J' * drag_axis_in_world_frame;
+      B_drag = df_drag * J' * drag_axis_in_world_frame + drag_force * J' * df_drag_axis;
+      
+      df_lift_vector = df_lift * lift_axis_in_world_frame + lift_force * df_lift_axis;
+      df_drag_vector = df_drag * drag_axis_in_world_frame + drag_force * df_drag_axis;
       
       
       % use two forces in opposite directions one meter away to create a
