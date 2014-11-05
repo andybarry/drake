@@ -155,19 +155,20 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
       % plate at u = 0.)
 
       if obj.control_surface_velocity_controlled
-        control_surface_angle = xx(obj.extra_state_num);
+        theta = xx(obj.extra_state_num); % theta = control surface angle
       else
-        control_surface_angle = 0;
+        theta = 0; 
       end
+      
+      r = obj.chord / 2 + obj.control_surface_chord / 2;
 
 
       if obj.control_surface_velocity_controlled
-%        warning('dforce does not include control surface stuff yet');
         
         % get the airspeed for the center of this control surface since we
         % know its deflection
-        r = obj.chord / 2 + obj.control_surface_chord / 2;
-        theta = control_surface_angle;
+        
+        
         center_of_surface = [obj.chord/2; 0; 0] - [r * cos(theta); 0; r * sin(theta) ];
         
         wingvel_struct2 = RigidBodyWing.computeWingVelocity(obj.kinframe, manip, q, qd, kinsol, center_of_surface);
@@ -188,8 +189,6 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         v_air_z = wingvel_rel_cs(3);
         
         % linearize lift about u = 0, where u is a velocity input
-        
-        
         rho = obj.rho;
         S = obj.control_surface_chord * obj.span;
         
@@ -202,7 +201,6 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
 %
 %       flatplate_ddrag_du = 2 * rho * S * r * sin(theta) * (r * cs_vel * sin(theta) + v_air_z);
         
-        % debug derivative with numerical differentiation and graphs
         v_x = @(u) r * (u) * cos(pi/2-theta);
         v_z = @(u) r * (u) * sin(pi/2-theta);
         
@@ -218,18 +216,6 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         
         lift_with_vel_u_cs = @(u) rho * S * sin( aoa_cs(u) ) * cos( aoa_cs(u) ) * full_v(u)^2;
         drag_with_vel_u_cs = @(u) rho * S * (sin( aoa_cs(u) ))^2 * full_v(u)^2;
-
-        
-        
-%         count = 1;
-%         u_range = -100:.1:100;
-%         for u_in = u_range
-%           lift_range(count) = debug_lift(u_in);
-%           count = count + 1;
-%         end
-%         
-%         plot(u_range, lift_range);
-%         hold on
         
 
         linearization_point = 0; % linearize about control surface velocity = 0
@@ -237,14 +223,11 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         
         numerical_diff_lift = (lift_with_vel_u_cs(linearization_point + diff_amount) - lift_with_vel_u_cs(linearization_point - diff_amount)) / (diff_amount*2);
         numerical_diff_drag = (drag_with_vel_u_cs(linearization_point + diff_amount) - drag_with_vel_u_cs(linearization_point - diff_amount)) / (diff_amount*2);
-%         plot(u_range, u_range*numerical_diff, 'r');
-%         plot(u_range, u_range*flatplate_dlift_du, 'k');
 
         
         lift_force = lift_with_vel_u_cs(linearization_point);
         drag_force = drag_with_vel_u_cs(linearization_point);
-        
-        
+        torque_moment =  0;
         
         df_lift = numerical_diff_lift;
         df_drag = numerical_diff_drag;
@@ -279,12 +262,19 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
 
         % linearize about u = 0 where u is the position input
         u=0;
-        % Cl = Cl_linear*u + Cl_affine  (but the affine terms are already
-        % applied from above)
+        % Cl = Cl_linear*u + Cl_affine
         Cl_linear = obj.dfCl_control_surface_du(aoa,u);
         Cd_linear = obj.dfCd_control_surface_du(aoa,u);
         Cm_linear = obj.dfCm_control_surface_du(aoa,u);
-
+        
+        Cl_affine = obj.fCl_control_surface(aoa,u);
+        Cd_affine = obj.fCd_control_surface(aoa,u);
+        Cm_affine = obj.fCm_control_surface(aoa,u);
+        
+        lift_force = Cl_affine;
+        drag_force = Cd_affine;
+        torque_moment = Cm_affine; % TODO: should this be here?
+        
         % debug data to create plots
 
         %{
@@ -330,7 +320,6 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         
       end
       
-      torque_moment =  0;%fCm_surface * airspeed * airspeed;
 
       lift_vector = lift_force * lift_axis_in_world_frame;
       drag_vector = drag_force * drag_axis_in_world_frame;
