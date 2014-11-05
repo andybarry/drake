@@ -30,6 +30,28 @@ v = p2.constructVisualizer();
 % (no loss in the linearization from B*u)
 
 %    [X Z Pitch El Vx Vz PitDot Velev]
+% 
+%   u0 = 10;%rand(1)-.5;
+%   pitch =0;
+%   phi = 0;
+%   xvel = 3+4;
+%   zvel = 0;
+%   pitchdot = 0;
+%   x = [0 0   pitch   phi  xvel  zvel    pitchdot]';
+%   glider_xdot = gp.dynamics(0,x,u0);
+%   
+%   %urdf_xdot = urdf_dynamics_planar(p,x,u0);
+%   %valuecheck(urdf_xdot,glider_xdot, 1e-7);
+%   
+%   urdf_xdot_3d = urdf_dynamics_3d(p2,x,u0);
+%   
+%   
+%   glider_xdot - urdf_xdot_3d
+%   
+%   valuecheck(urdf_xdot_3d,glider_xdot, 1e-7);
+%   
+% return
+
 for i = 1:100
   u0 = 0;%rand(1)-.5;
   pitch = rand(1)-.5;
