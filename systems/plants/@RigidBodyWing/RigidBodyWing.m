@@ -646,7 +646,7 @@ classdef RigidBodyWing < RigidBodyForceElement
        dfCm = @(alpha) 0;
     end
       
-    function [ wingvel_struct, wingvel_dstruct ]= computeWingVelocity(kinframe, manip, q, qd, kinsol)
+    function [ wingvel_struct, wingvel_dstruct ]= computeWingVelocity(kinframe, manip, q, qd, kinsol, point_on_wing)
       % Computes the velcity of the wing in word coordinates
       %
       % @param kinframe frame id of the kinematic frame
@@ -654,6 +654,11 @@ classdef RigidBodyWing < RigidBodyForceElement
       % @param q state vector
       % @param qd q-dot (time derivative of state vector)
       % @param kinsol solution from doKinematics
+      % @param point_on_wing (optional) xyz point in the body frame
+      %   (relative to the origin) to compute about instead of the origin.
+      %   This is useful for getting airspeed on a control surface that is
+      %   somewhere else in this frame
+      %   @default [0; 0; 0]
       %
       % @retval wingvel_struct which has the following values:
       %   <pre>
@@ -675,16 +680,20 @@ classdef RigidBodyWing < RigidBodyForceElement
       %     velocity of the wing in world coordinates
       %   </pre>
       
+      if (nargin < 6)
+        point_on_wing = zeros(3,1);
+      end
+      
       if (nargout>1)
         
-        [~,J] = forwardKin(manip,kinsol,kinframe,zeros(3,1));
-        Jdot = forwardJacDot(manip,kinsol,kinframe,zeros(3,1));
+        [~,J] = forwardKin(manip,kinsol,kinframe,point_on_wing);
+        Jdot = forwardJacDot(manip,kinsol,kinframe,point_on_wing);
         wingvel_world_xyz = J*qd; % assume still air. Air flow over the wing
         dwingvel_worlddq = Jdot;
         dwingvel_worlddqd = J;
       else
-        kinsol = doKinematics(manip,q);
-        [~,J] = forwardKin(manip,kinsol,kinframe,zeros(3,1));
+        %kinsol = doKinematics(manip,q);
+        [~,J] = forwardKin(manip,kinsol,kinframe,point_on_wing);
         wingvel_world_xyz = J*qd; % assume still air. Air flow over the wing
       end
       

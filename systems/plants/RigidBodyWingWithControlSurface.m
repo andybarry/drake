@@ -201,20 +201,29 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
       if obj.control_surface_velocity_controlled
 %        warning('dforce does not include control surface stuff yet');
         
+
+        % get the airspeed for the center of this control surface since we
+        % know its deflection
+        r = obj.chord / 2 + obj.control_surface_chord / 2;
+        theta = control_surface_angle;
+        center_of_surface = [obj.chord/2; 0; 0] - [r * cos(theta); 0; r * sin(theta) ];
+        
+        wingvel_struct2 = RigidBodyWing.computeWingVelocity(obj.kinframe, manip, q, qd, kinsol, center_of_surface);
+        wingvel_rel2 = RigidBodyWing.computeWingVelocityRelative(obj.kinframe, manip, kinsol, wingvel_struct2);
         
         
         % now compute the forces that depend on u
         
-        r = obj.chord / 2 + obj.control_surface_chord / 2;
-        v_air_x = wingvel_rel(1);
-        v_air_z = wingvel_rel(3);
+        
+        v_air_x = wingvel_rel2(1);
+        v_air_z = wingvel_rel2(3);
         
         % linearize lift about u = 0, where u is a velocity input
         
-        theta = control_surface_angle;
+        
         rho = obj.rho;
         S = obj.control_surface_chord * obj.span;
-        
+        pitch_dot = 0;
         
 %         flatplate_dlift_du = (rho * r * S * (-3 * r^2 * cs_vel^2 * v_air_x * cos(3*theta) + 2*v_air_z * ...
 %           (3*r^2*cs_vel^2 + 2*v_air_z^2 + 3*r^2 * cs_vel^2 * cos(2*theta)) * sin(theta) ...
@@ -226,8 +235,8 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
 %       flatplate_ddrag_du = 2 * rho * S * r * sin(theta) * (r * cs_vel * sin(theta) + v_air_z);
         
         % debug derivative with numerical differentiation and graphs
-        v_x = @(u) r * u * cos(pi/2-theta);
-        v_z = @(u) r * u * sin(pi/2-theta);
+        v_x = @(u) r * (u + pitch_dot) * cos(pi/2-theta);
+        v_z = @(u) r * (u + pitch_dot) * sin(pi/2-theta);
         
         full_v = @(u) sqrt ( (v_x(u) + v_air_x)^2 + (v_z(u) + v_air_z)^2 );
         
