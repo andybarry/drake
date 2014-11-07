@@ -33,34 +33,34 @@ v = p2.constructVisualizer();
 
 %    [X Z Pitch El Vx Vz PitDot Velev]
 
-  u0 = 1;%rand(1)-.5;
-  pitch = 0;
-  phi = 0.5;
-  xvel = 3+4;
-  zvel = 0;
-  pitchdot = 0;
-  x = [0 0   pitch   phi  xvel  zvel    pitchdot]';
-  %glider_xdot = gp.dynamics(0,x,u0)
-  
-  glider_lu_xdot = gp_lu.dynamics(0,x,u0);
-  
-  %urdf_xdot = urdf_dynamics_planar(p,x,u0);
-  %valuecheck(urdf_xdot,glider_xdot, 1e-7);
-  
-  urdf_xdot_3d = urdf_dynamics_3d(p2,x,u0);
-  
-  
-  %glider_xdot - urdf_xdot_3d
-  
-  valuecheck(urdf_xdot_3d,glider_lu_xdot, 1e-7);
-  
-return
+%   u0 = -1;%rand(1)-.5;
+%   pitch = .5;
+%   phi = 0.5;
+%   xvel = 3+4;
+%   zvel = 0.2;
+%   pitchdot = .5;
+%   x = [0 0   pitch   phi  xvel  zvel    pitchdot]';
+%   glider_xdot = gp.dynamics(0,x,u0)
+%   
+%   %glider_lu_xdot = gp_lu.dynamics(0,x,u0)
+%   
+%   %urdf_xdot = urdf_dynamics_planar(p,x,u0);
+%   %valuecheck(urdf_xdot,glider_xdot, 1e-7);
+%   
+%   urdf_xdot_3d = urdf_dynamics_3d(p2,x,u0)
+%   
+%   
+%   %glider_xdot - urdf_xdot_3d
+%   
+%   valuecheck(urdf_xdot_3d,glider_xdot, 1e-2);
+%   
+% return
 
 
 fprintf('Testing');
 
 for i = 1:80
-  u0 = 10;%rand(1)-.5;
+  u0 = rand(1)-.5;
   pitch = rand(1)-.5;
   phi = rand(1)-.5;
   xvel = rand(1)*3+4;
@@ -73,7 +73,7 @@ for i = 1:80
   %valuecheck(urdf_xdot,glider_xdot, 1e-7);
   
   urdf_xdot_3d = urdf_dynamics_3d(p2,x,u0);
-  valuecheck(urdf_xdot_3d,glider_xdot, 1e-7);
+  valuecheck(urdf_xdot_3d,glider_xdot, 1e-2);
   fprintf('.');
 end
 disp(' passed.');
@@ -108,7 +108,8 @@ end
   function xdot = urdf_dynamics_3d(p, x, phidot)
     % URDF's are defined with positive pitch = down (y-axis rotation)
     %GliderPlant uses positive pitch = up.
-    %because pitch axes are reversed between models--also for elevator(input)
+    %because pitch axes are reversed between models -- also for the
+    %elevator
     
     x0 = x(1);
     y0 = 0;
@@ -126,7 +127,7 @@ end
     pitchdot0 = -x(7);
     yawdot0 = 0;
     
-    elv0 = x(4);
+    elv0 = -x(4);
     
     x0 = [ x0; y0; z0; roll0; pitch0; yaw0; xdot0; ydot0; zdot0; rolldot0;  pitchdot0; yawdot0; elv0 ];
     
@@ -161,7 +162,7 @@ end
   function xdot = urdf_dynamics_planar(p,x,phidot)
     % URDF's are defined with positive pitch = down (y-axis rotation)
     %GliderPlant uses positive pitch = up.
-    %because pitch axes are reversed between models--also for elevator(input)
+    %because pitch axes are reversed between models
     
     % TODO
     x0 = x(1);

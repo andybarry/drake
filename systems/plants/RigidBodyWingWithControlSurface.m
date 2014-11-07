@@ -174,7 +174,7 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         % know its deflection
         
         
-        center_of_surface = [-obj.chord/2; 0; 0] + [-r * cos(theta); 0; -r * sin(theta) ];
+        center_of_surface = [-obj.chord/2; 0; 0] + [-r * cos(theta); 0; r * sin(theta) ];
         
         wingvel_struct2 = RigidBodyWing.computeWingVelocity(obj.kinframe, manip, q, qd, kinsol, center_of_surface);
         wingvel_rel_cs = RigidBodyWing.computeWingVelocityRelative(obj.kinframe, manip, kinsol, wingvel_struct2);
@@ -213,7 +213,7 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         % NOTE: this is were we will lose accuracy because because we are going to have to
         % linearize about u = 0 instead of using the real atan2 value with
         % u in it.
-        aoa_cs = @(u) -atan2(v_z(u),  v_x(u)) + theta;
+        aoa_cs = @(u) -atan2(v_z(u),  v_x(u)) - theta;
         
         lift_with_vel_u = @(u) rho * S * sin( aoa_cs(u) ) * cos( aoa_cs(u) ) * full_v(u)^2;
         drag_with_vel_u = @(u) rho * S * (sin( aoa_cs(u) ))^2 * full_v(u)^2;
@@ -379,7 +379,7 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
 
       f_world_frame = [force_x; force_y; force_z];
       
-      location_of_forces_relative_to_parent_origin = frame.T(1:3,4) - [obj.chord/2; 0; 0] - [r * cos(theta); 0; r * sin(theta) ];
+      location_of_forces_relative_to_parent_origin = frame.T(1:3,4) + [-obj.chord/2; 0; 0] + [-r * cos(theta); 0; r * sin(theta) ];
       
       f = manip.cartesianForceToSpatialForce(kinsol, frame.body_ind, location_of_forces_relative_to_parent_origin, f_world_frame);
       
@@ -390,7 +390,7 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
       
 
       % position of origin
-      [~, J] = forwardKin(manip, kinsol, obj.kinframe, [-obj.chord/2; 0; 0] + [-r*cos(theta); 0; -r*sin(theta)]);
+      [~, J] = forwardKin(manip, kinsol, obj.kinframe, [-obj.chord/2; 0; 0] + [-r*cos(theta); 0; r*sin(theta)]);
 
       
       B_lift = df_lift * J' * lift_axis_in_world_frame + lift_force * J' * df_lift_axis;
