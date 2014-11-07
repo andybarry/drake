@@ -223,7 +223,7 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         % somehow account for the fact that B must be multiplied by the
         % u - linearization_point
         linearization_point = 0;
-        diff_amount = 0.00001;
+        diff_amount = 1e-5;
         
         numerical_diff_lift = (lift_with_vel_u(linearization_point + diff_amount) - lift_with_vel_u(linearization_point - diff_amount)) / (diff_amount*2);
         numerical_diff_drag = (drag_with_vel_u(linearization_point + diff_amount) - drag_with_vel_u(linearization_point - diff_amount)) / (diff_amount*2);
