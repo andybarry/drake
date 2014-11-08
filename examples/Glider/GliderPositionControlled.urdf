@@ -1,0 +1,77 @@
+<robot xmlns="http://drake.mit.edu"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://drake.mit.edu ../../doc/drakeURDF.xsd" name="Glider">
+  <link
+    name="fuselage">
+    <inertial>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <mass
+        value="0.08" />
+      <inertia
+        ixx="0.0015"
+        ixy="0"
+        ixz="0"
+        iyy="0.0015"
+        iyz="0"
+        izz="0.0015" />
+    </inertial>
+    <!--
+    <visual>
+      <origin
+        xyz="-.135 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh filename="meshes/GliderFuselage.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 0 0 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <!- - <mesh filename="meshes/GliderFuselage.STL" /> - ->
+        <box size =".3 .1 .03"/>
+      </geometry>
+    </collision>
+    -->
+  </link>
+
+  <force_element name="Wing_force">
+    <wing chord=".12" nominal_speed="7" profile="flat plate" span="0.7375" name="main_wing">
+      <parent link="fuselage"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>  <!-- want the half-chord to be at zero, but need to put origin at the quarter chord TODO: x=0.0442 for 1/4 chord -->
+    </wing>
+  </force_element>
+  <!--
+  <force_element name="Wing_force">
+    <wing chord=".177" nominal_speed="7" profile="flat plate" span=".5" stall_angle="181">
+      <parent link="fuselage"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    </wing>
+  </force_element>
+  -->
+  <force_element name="Elevator_force">
+    <wing_with_control_surface
+      name="elevator_wing"
+      profile="flat plate"
+      stall_angle="181"
+      span="0.334090909"
+      chord="0"
+      nominal_speed="7"
+      control_surface_chord="0.044"
+      control_surface_min_deflection="-0.9473"
+      control_surface_max_deflection="0.4463"
+      control_surface_velocity_controlled="false">
+
+      <parent link="fuselage"/>
+      <origin xyz="-.27 0 0" rpy="0 0 0"/>
+    </wing_with_control_surface>
+  </force_element>
+</robot>

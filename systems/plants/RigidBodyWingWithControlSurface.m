@@ -288,7 +288,9 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
 
         % linearize about u = 0 where u is the position input
         u=0;
-        % Cl = Cl_linear*u + Cl_affine
+        
+        % fCl = fCl_linear*u + fCl_affine
+        
         Cl_linear = obj.dfCl_control_surface_du(aoa,u);
         Cd_linear = obj.dfCd_control_surface_du(aoa,u);
         Cm_linear = obj.dfCm_control_surface_du(aoa,u);
@@ -299,7 +301,7 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         
         lift_force = Cl_affine;
         drag_force = Cd_affine;
-        torque_moment = Cm_affine; % TODO: should this be here?
+        torque_moment = 0; % TODO: should this be here?
         
         % debug data to create plots
 
@@ -343,6 +345,9 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         df_lift = Cl_linear * airspeed*airspeed;
         df_drag = Cd_linear * airspeed*airspeed;
         dtorque_moment = Cm_linear * airspeed * airspeed;
+        
+        df_lift_axis = zeros(3,1);
+        df_drag_axis = zeros(3,1);
         
       end
       
@@ -397,8 +402,10 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
 
       B_drag = df_drag * J' * drag_axis_in_world_frame + drag_force * J' * df_drag_axis;
       
-      df_lift_vector = df_lift * lift_axis_in_world_frame + lift_force * df_lift_axis;
-      df_drag_vector = df_drag * drag_axis_in_world_frame + drag_force * df_drag_axis;
+      % these are useful for debugging because they give the B*u part
+      % (without u) in world xyz coordinates
+      %df_lift_vector = df_lift * lift_axis_in_world_frame + lift_force * df_lift_axis;
+      %df_drag_vector = df_drag * drag_axis_in_world_frame + drag_force * df_drag_axis;
       
       
       % use two forces in opposite directions one meter away to create a
