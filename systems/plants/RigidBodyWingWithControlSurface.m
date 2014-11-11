@@ -393,8 +393,8 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
       
       % these are useful for debugging because they give the B*u part
       % (without u) in world xyz coordinates
-      %df_lift_vector = df_lift * lift_axis_in_world_frame + lift_force * df_lift_axis;
-      %df_drag_vector = df_drag * drag_axis_in_world_frame + drag_force * df_drag_axis;
+      df_lift_vector = df_lift * lift_axis_in_world_frame + lift_force * df_lift_axis;
+      df_drag_vector = df_drag * drag_axis_in_world_frame + drag_force * df_drag_axis;
       
       
       % use two forces in opposite directions one meter away to create a
