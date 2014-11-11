@@ -36,11 +36,11 @@ function verifyPositionControlledControlInput()
   %    [X Z Pitch El Vx Vz PitDot Velev]
 
     u0 = 0;%rand(1)-.5;
-    pitch = 0;
+    pitch = -2;
     phi = 0;
     xvel = 3+4;
-    zvel = 1;
-    pitchdot = 0;
+    zvel = -.5;
+    pitchdot = 1;
     x = [0 0   pitch   phi  xvel  zvel    pitchdot]';
     %glider_xdot = gp.dynamics(0,x,u0)
     
@@ -173,6 +173,10 @@ function verifyPositionControlledControlInput()
     rolldot0 = 0;
     pitchdot0 = -x(7);
     yawdot0 = 0;
+    
+    if phidot ~= 0
+      error('Non-zero phidot not allowed for position controlled surface.');
+    end
     
     x0 = [ x0; y0; z0; roll0; pitch0; yaw0; xdot0; ydot0; zdot0; rolldot0;  pitchdot0; yawdot0 ];
     

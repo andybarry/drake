@@ -167,22 +167,18 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
       z_unit = [0; 0; 1];
 
       frame = getFrame(manip,obj.kinframe);
+      
+      % get the airspeed for the center of this control surface
+        
+      center_of_surface = [-obj.chord/2; 0; 0] + [-r * cos(theta); 0; r * sin(theta) ];
+
+      wingvel_struct2 = RigidBodyWing.computeWingVelocity(obj.kinframe, manip, q, qd, kinsol, center_of_surface);
+      wingvel_rel_cs = RigidBodyWing.computeWingVelocityRelative(obj.kinframe, manip, kinsol, wingvel_struct2);
+
+      wingvel_world_xz = wingvel_struct2.wingvel_world_xz;
+      wingYunit = wingvel_struct2.wingYunit;
 
       if obj.control_surface_velocity_controlled
-        
-        % get the airspeed for the center of this control surface since we
-        % know its deflection
-        
-        
-        center_of_surface = [-obj.chord/2; 0; 0] + [-r * cos(theta); 0; r * sin(theta) ];
-        
-        wingvel_struct2 = RigidBodyWing.computeWingVelocity(obj.kinframe, manip, q, qd, kinsol, center_of_surface);
-        wingvel_rel_cs = RigidBodyWing.computeWingVelocityRelative(obj.kinframe, manip, kinsol, wingvel_struct2);
-        
-        wingvel_world_xz = wingvel_struct2.wingvel_world_xz;
-        wingYunit = wingvel_struct2.wingYunit;
-        
-        
         
         % now compute the forces that depend on u
         
@@ -263,16 +259,9 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
       else
 
         % get the coefficients for this point in state space
-
-        wingvel_struct = RigidBodyWing.computeWingVelocity(obj.kinframe, manip, q, qd, kinsol);
-        wingvel_rel = RigidBodyWing.computeWingVelocityRelative(obj.kinframe, manip, kinsol, wingvel_struct);
-
-        wingvel_world_xz = wingvel_struct.wingvel_world_xz;
-        wingYunit = wingvel_struct.wingYunit;
-
         airspeed = norm(wingvel_world_xz);
 
-        aoa = -atan2(wingvel_rel(3),wingvel_rel(1));
+        aoa = -atan2(wingvel_rel_cs(3),wingvel_rel_cs(1));
 
         % lift is defined as the force perpendicular to the direction of
         % airflow, so the lift axis in the world frame is the axis
@@ -299,8 +288,8 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         Cd_affine = obj.fCd_control_surface(aoa,u);
         Cm_affine = obj.fCm_control_surface(aoa,u);
         
-        lift_force = Cl_affine;
-        drag_force = Cd_affine;
+        lift_force = Cl_affine * airspeed * airspeed;
+        drag_force = Cd_affine * airspeed * airspeed;
         torque_moment = 0; % TODO: should this be here?
         
         % debug data to create plots
