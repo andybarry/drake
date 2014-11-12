@@ -37,10 +37,10 @@ function verifyPositionControlledControlInput()
 
     u0 = 0;%rand(1)-.5;
     pitch = 0;
-    phi = -1;
+    phi = 1;
     xvel = 3+4;
-    zvel = 1;
-    pitchdot = 0;
+    zvel = 0;
+    pitchdot = 1;
     x = [0 0   pitch   phi  xvel  zvel    pitchdot]';
     %glider_xdot = gp.dynamics(0,x,u0)
     
