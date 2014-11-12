@@ -177,6 +177,8 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
 
       wingvel_world_xz = wingvel_struct2.wingvel_world_xz;
       wingYunit = wingvel_struct2.wingYunit;
+      
+      diff_amount = 1e-5;
 
       if obj.control_surface_velocity_controlled
         
@@ -219,7 +221,6 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         % somehow account for the fact that B must be multiplied by the
         % u - linearization_point
         linearization_point = 0;
-        diff_amount = 1e-5;
         
         numerical_diff_lift = (lift_with_vel_u(linearization_point + diff_amount) - lift_with_vel_u(linearization_point - diff_amount)) / (diff_amount*2);
         numerical_diff_drag = (drag_with_vel_u(linearization_point + diff_amount) - drag_with_vel_u(linearization_point - diff_amount)) / (diff_amount*2);
@@ -258,9 +259,9 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
 
       else
 
-        % get the coefficients for this point in state space
+        % position controlled actuator
+        
         airspeed = norm(wingvel_world_xz);
-
         aoa = -atan2(wingvel_rel_cs(3),wingvel_rel_cs(1));
 
         % lift is defined as the force perpendicular to the direction of
@@ -280,10 +281,6 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         
         % fCl = fCl_linear*u + fCl_affine
         
-        Cl_linear = obj.dfCl_control_surface_du(aoa,u);
-        Cd_linear = obj.dfCd_control_surface_du(aoa,u);
-        Cm_linear = obj.dfCm_control_surface_du(aoa,u);
-        
         Cl_affine = obj.fCl_control_surface(aoa,u);
         Cd_affine = obj.fCd_control_surface(aoa,u);
         Cm_affine = obj.fCm_control_surface(aoa,u);
@@ -292,51 +289,66 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
         drag_force = Cd_affine * airspeed * airspeed;
         torque_moment = 0; % TODO: should this be here?
         
-        % debug data to create plots
+        % do numerical differentiation to get the linear part
+        
+        % there is a subtle thing here where airspeed components depend on
+        % u when there is a non-zero pitch-dot, which we need to account
+        % for (that's why we can't just use dfCl_du)
+        
+        u = diff_amount;
+        
+        center_of_surface_high = [-obj.chord/2; 0; 0] + [-r * cos(theta + u); 0; r * sin(theta + u) ];
+        wingvel_struct_high = RigidBodyWing.computeWingVelocity(obj.kinframe, manip, q, qd, kinsol, center_of_surface_high);
+        wingvel_rel_cs_high = RigidBodyWing.computeWingVelocityRelative(obj.kinframe, manip, kinsol, wingvel_struct_high);
+        wingvel_world_xz_high = wingvel_struct_high.wingvel_world_xz;
+        
+        airspeed_high = norm(wingvel_world_xz_high);
+        aoa_high = -atan2(wingvel_rel_cs_high(3),wingvel_rel_cs_high(1));
+        Cl_affine_high = obj.fCl_control_surface(aoa_high, u);
+        Cd_affine_high = obj.fCd_control_surface(aoa_high, u);
+        lift_force_high = Cl_affine_high * airspeed_high * airspeed_high;
+        drag_force_high = Cd_affine_high * airspeed_high * airspeed_high;
+        lift_axis_in_world_frame_high = cross(wingvel_world_xz_high, wingYunit);
+        lift_axis_in_world_frame_high = lift_axis_in_world_frame_high / norm(lift_axis_in_world_frame_high);
+        drag_axis_in_world_frame_high = -wingvel_world_xz_high / norm(wingvel_world_xz_high);
+        
+        u = -diff_amount;
+        
+        center_of_surface_low = [-obj.chord/2; 0; 0] + [-r * cos(theta + u); 0; r * sin(theta + u) ];
+        wingvel_struct_low = RigidBodyWing.computeWingVelocity(obj.kinframe, manip, q, qd, kinsol, center_of_surface_low);
+        wingvel_rel_cs_low = RigidBodyWing.computeWingVelocityRelative(obj.kinframe, manip, kinsol, wingvel_struct_low);
+        wingvel_world_xz_low = wingvel_struct_low.wingvel_world_xz;
+        
+        airspeed_low = norm(wingvel_world_xz_low);
+        aoa_low = -atan2(wingvel_rel_cs_low(3),wingvel_rel_cs_low(1));
+        Cl_affine_low = obj.fCl_control_surface(aoa_low, u);
+        Cd_affine_low = obj.fCd_control_surface(aoa_low, u);
+        lift_force_low = Cl_affine_low * airspeed_low * airspeed_low;
+        drag_force_low = Cd_affine_low * airspeed_low * airspeed_low;
+        lift_axis_in_world_frame_low = cross(wingvel_world_xz_low, wingYunit);
+        lift_axis_in_world_frame_low = lift_axis_in_world_frame_low / norm(lift_axis_in_world_frame_low);
+        drag_axis_in_world_frame_low = -wingvel_world_xz_low / norm(wingvel_world_xz_low);
+        
+        
+        df_lift = (lift_force_high - lift_force_low) / (2*diff_amount);
+        df_drag = (drag_force_high - drag_force_low) / (2*diff_amount);
+        
+        df_lift_axis = (lift_axis_in_world_frame_high - lift_axis_in_world_frame_low) / (2*diff_amount);
+        df_drag_axis = (drag_axis_in_world_frame_high - drag_axis_in_world_frame_low) / (2*diff_amount);
+        
+        
+        %Cl_linear = obj.dfCl_control_surface_du(aoa,u);
+        %Cd_linear = obj.dfCd_control_surface_du(aoa,u);
+        %Cm_linear = obj.dfCm_control_surface_du(aoa,u);
+        
+        
 
-        %{
-        % begin_debug
-          control_surface_range = obj.getControlSurfaceRange();
-          aoa_range = repmat(aoa, 1, length(control_surface_range));
-          Cl = obj.fCl_control_surface(aoa_range, control_surface_range);
-          Cd = obj.fCd_control_surface(aoa_range, control_surface_range);
-          Cm = obj.fCm_control_surface(aoa_range, control_surface_range);
-
-          figure(1)
-          clf
-          plot(rad2deg(control_surface_range), Cl)
-          hold on
-          plot(rad2deg(control_surface_range), Cl_linear * control_surface_range, 'r');
-          xlabel('Control surface deflection (deg)');
-          ylabel('Coefficient of lift');
-          title(['aoa = ' num2str(rad2deg(aoa))]);
-
-          figure(2)
-          clf
-          plot(rad2deg(control_surface_range), Cd)
-          hold on
-          plot(rad2deg(control_surface_range), Cd_linear * control_surface_range, 'g');
-          xlabel('Control surface deflection (deg)');
-          ylabel('Coefficient of drag');
-          title(['aoa = ' num2str(rad2deg(aoa))]);
-
-          figure(3)
-          clf
-          plot(rad2deg(control_surface_range), Cm);
-          hold on
-          plot(rad2deg(control_surface_range), Cm_linear * control_surface_range, 'k');
-          xlabel('Control surface deflection (deg)');
-          ylabel('Moment coefficient');
-          title(['aoa = ' num2str(rad2deg(aoa))]);
-        % end_debug
-        %}
-
-        df_lift = Cl_linear * airspeed*airspeed;
-        df_drag = Cd_linear * airspeed*airspeed;
+        %df_lift = Cl_linear * airspeed*airspeed;% + something_about_d_airspeed_squared_du; % TODO
+        %df_drag = Cd_linear * airspeed*airspeed;
         dtorque_moment = 0;%Cm_linear * airspeed * airspeed;
         
-        df_lift_axis = zeros(3,1);
-        df_drag_axis = zeros(3,1);
+        %df_lift_axis = zeros(3,1);
+        %df_drag_axis = zeros(3,1);
         
       end
       

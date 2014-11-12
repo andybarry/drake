@@ -109,6 +109,8 @@ classdef GliderPlantLinearizedElevAngle < DrakeSystem
       dx7_du = (xdot_high(7,:) - xdot_low(7,:)) / (2*diff_amount);
       xdot(7,:) = dx7_du * q4_input + xdot_affine(7,:);
       
+      % compute true value
+      q4 = q4_input;
       
       xedot = qdot1 + l*qdot3*sin(q3) + le*(qdot3+qdot4)*sin(q3+q4); 
       zedot = qdot2 - l*qdot3*cos(q3) - le*(qdot3+qdot4)*cos(q3+q4);
@@ -116,12 +118,14 @@ classdef GliderPlantLinearizedElevAngle < DrakeSystem
       Fe = rho*Se*sin(alpha_e)*(zedot.^2+xedot.^2);
 
       xdot_true = x;
+      xdot_true(1,:)=x(5,:);
+      xdot_true(2,:)=x(6,:);
+      xdot_true(3,:)=x(7,:);
+      xdot_true(4)=u(1);
       xdot_true(5,:)=-(Fw*sin(q3) + Fe*sin(q3+q4))/m;
       xdot_true(6,:)=(Fw*cos(q3) + Fe*cos(q3+q4))/m -g;
       xdot_true(7,:)=(Fw.*lw - Fe.*(l*cos(q4)+le))/I;
-      
-      
-      q4 = q4_input;
+
 
       xdot(4)=u(1);
 
