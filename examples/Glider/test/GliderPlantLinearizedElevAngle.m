@@ -39,7 +39,7 @@ classdef GliderPlantLinearizedElevAngle < DrakeSystem
     end
     
     function [xdot,df] = dynamics(obj,t,x,u)
-      keyboard
+      %keyboard
       q=x(1:4); qdot=x(5:7); 
       m=obj.m; g=obj.g; rho=obj.rho; Sw=obj.S_w;
       Se=obj.S_e; I=obj.I; l=obj.l_h; lw=obj.l_w; le=obj.l_e;
@@ -140,6 +140,8 @@ classdef GliderPlantLinearizedElevAngle < DrakeSystem
       xdot(2,:)=x(6,:);
 
       xdot(3,:)=x(7,:);
+      
+      %xdot - xdot_true
       
       % todo: enforce elevator constraints
       % phi_lo_limit < x(4) < phi_up_limit

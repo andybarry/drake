@@ -39,7 +39,7 @@ classdef GliderPlant < DrakeSystem
     end
     
     function [xdot,df] = dynamics(obj,t,x,u)
-      keyboard
+      %keyboard
       q=x(1:4); qdot=x(5:7); 
       m=obj.m; g=obj.g; rho=obj.rho; Sw=obj.S_w;
       Se=obj.S_e; I=obj.I; l=obj.l_h; lw=obj.l_w; le=obj.l_e;

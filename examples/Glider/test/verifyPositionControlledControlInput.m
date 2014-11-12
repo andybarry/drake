@@ -19,7 +19,7 @@ function verifyPositionControlledControlInput()
 
   gp = GliderPlant();
 
-  gp_linearized = GliderPlantLinearizedElevAngle();
+  gp_lu = GliderPlantLinearizedElevAngle();
 
   %disp('constructing a Planar glider')
   options.floating = true;
@@ -35,33 +35,33 @@ function verifyPositionControlledControlInput()
 
   %    [X Z Pitch El Vx Vz PitDot Velev]
 
-    u0 = 0;%rand(1)-.5;
-    pitch = -2;
-    phi = -1;
-    xvel = 3+4;
-    zvel = 1;
-    pitchdot = 10;
-    x = [0 0   pitch   phi  xvel  zvel    pitchdot]';
-    %glider_xdot = gp.dynamics(0,x,u0)
-    
-    glider_xdot_linearized = gp_linearized.dynamics(0,x,u0)
-    
-    %glider_xdot = gp.dynamics(0, x, u0)
-    
-    %urdf_xdot = urdf_dynamics_planar(p,x,u0);
-    %valuecheck(urdf_xdot,glider_xdot, 1e-7);
-    
-    urdf_xdot_3d = urdf_dynamics_3d(p2,x,u0)
-    
-    
-    %glider_xdot - urdf_xdot_3d
-    
-    valuecheck(urdf_xdot_3d, glider_xdot_linearized, 1e-7);
-    
-  return
+%     u0 = 0;%rand(1)-.5;
+%     pitch = -2;
+%     phi = -1;
+%     xvel = 3+4;
+%     zvel = 1;
+%     pitchdot = 10;
+%     x = [0 0   pitch   phi  xvel  zvel    pitchdot]';
+%     %glider_xdot = gp.dynamics(0,x,u0)
+%     
+%     glider_xdot_linearized = gp_linearized.dynamics(0,x,u0)
+%     
+%     %glider_xdot = gp.dynamics(0, x, u0)
+%     
+%     %urdf_xdot = urdf_dynamics_planar(p,x,u0);
+%     %valuecheck(urdf_xdot,glider_xdot, 1e-7);
+%     
+%     urdf_xdot_3d = urdf_dynamics_3d(p2,x,u0)
+%     
+%     
+%     %glider_xdot - urdf_xdot_3d
+%     
+%     valuecheck(urdf_xdot_3d, glider_xdot_linearized, 1e-7);
+%     
+%   return
 
 
-  real_dynamics_tol = 1e-2;
+  real_dynamics_tol = 20;
   linearized_dynamics_tol = 1e-7;
 
   disp(['Testing 3D with URDF against real dynamics, tolerance = ' num2str(real_dynamics_tol)]);
@@ -90,28 +90,28 @@ function verifyPositionControlledControlInput()
   end
   disp(' passed.');
   
-% 
-%   disp(['Testing 3D with URDF against linearized dynamics, tolerance = ' num2str(linearized_dynamics_tol)]);
-% 
-%   for i = 1:80
-%     u0 = rand(1)-.5;
-%     pitch = rand(1)-.5;
-%     phi = rand(1)-.5;
-%     xvel = rand(1)*3+4;
-%     zvel = rand(1)*2-1;
-%     pitchdot = rand(1)-.5;
-%     x = [0 0   pitch   phi  xvel  zvel    pitchdot]';
-% 
-%     glider_xdot_lu = gp_lu.dynamics(0,x,u0);
-% 
-%     urdf_xdot_3d = urdf_dynamics_3d(p2,x,u0);
-% 
-%     valuecheck(urdf_xdot_3d,glider_xdot_lu, linearized_dynamics_tol);
-%     
-%     fprintf('.');
-%   end
-%   disp(' passed.');
-%   
+
+  disp(['Testing 3D with URDF against linearized dynamics, tolerance = ' num2str(linearized_dynamics_tol)]);
+
+  for i = 1:80
+    u0 = 0;
+    pitch = rand(1)-.5;
+    phi = rand(1)-.5;
+    xvel = rand(1)*3+4;
+    zvel = rand(1)*2-1;
+    pitchdot = rand(1)-.5;
+    x = [0 0   pitch   phi  xvel  zvel    pitchdot]';
+
+    glider_xdot_lu = gp_lu.dynamics(0,x,u0);
+
+    urdf_xdot_3d = urdf_dynamics_3d(p2,x,u0);
+
+    valuecheck(urdf_xdot_3d,glider_xdot_lu, linearized_dynamics_tol);
+    
+    fprintf('.');
+  end
+  disp(' passed.');
+  
 %   
 %   disp(['Testing planar with URDF against real dynamics, tolerance = ' num2str(real_dynamics_tol)]);
 %   for i = 1:80
