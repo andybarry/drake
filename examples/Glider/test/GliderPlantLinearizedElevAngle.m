@@ -44,7 +44,7 @@ classdef GliderPlantLinearizedElevAngle < DrakeSystem
       m=obj.m; g=obj.g; rho=obj.rho; Sw=obj.S_w;
       Se=obj.S_e; I=obj.I; l=obj.l_h; lw=obj.l_w; le=obj.l_e;
 
-      q1 = x(1,:); q2 = x(2,:);  q3 = x(3,:); q4 = x(4,:);
+      q1 = x(1,:); q2 = x(2,:);  q3 = x(3,:); %q4 = x(4,:);
       qdot1 = x(5,:); qdot2 = x(6,:); qdot3 = x(7,:); qdot4=u(1);
       
       % here we linarized about elevator angle (q4 aka x(4) )
@@ -59,43 +59,35 @@ classdef GliderPlantLinearizedElevAngle < DrakeSystem
       Fw = rho*Sw*sin(alpha_w)*(zwdot^2+xwdot^2);
       
       diff_amount = 1e-5;
-      q4_input = q4;
+      
+      xedot = @(q4) qdot1 + l*qdot3*sin(q3) + le*(qdot3+qdot4)*sin(q3+q4); 
+      zedot = @(q4) qdot2 - l*qdot3*cos(q3) - le*(qdot3+qdot4)*cos(q3+q4);
+      alpha_e = @(q4) q3+q4-atan2(zedot(q4),xedot(q4));
+      Fe= @(q4) rho*Se*sin(alpha_e(q4))*(zedot(q4).^2+xedot(q4).^2);
+      xdot_low = x;
+      
+      xdot5 = @(q4) -(Fw*sin(q3) + Fe(q4)*sin(q3+q4))/m;
+      xdot6 = @(q4) (Fw*cos(q3) + Fe(q4)*cos(q3+q4))/m -g;
+      xdot7 = @(q4) (Fw.*lw - Fe(q4).*(l*cos(q4)+le))/I;
+      
+      q4_input = x(4,:);
       
       % now change q4 to do numerical differentiation (linearize about 0)
-      q4 = diff_amount;
 
-      xedot = qdot1 + l*qdot3*sin(q3) + le*(qdot3+qdot4)*sin(q3+q4); 
-      zedot = qdot2 - l*qdot3*cos(q3) - le*(qdot3+qdot4)*cos(q3+q4);
-      alpha_e = q3+q4-atan2(zedot,xedot);
-      Fe = rho*Se*sin(alpha_e)*(zedot.^2+xedot.^2);
-      
       xdot_high = x;
-      xdot_high(5,:)=-(Fw*sin(q3) + Fe*sin(q3+q4))/m;
-      xdot_high(6,:)=(Fw*cos(q3) + Fe*cos(q3+q4))/m -g;
-      xdot_high(7,:)=(Fw.*lw - Fe.*(l*cos(q4)+le))/I;
-
+      xdot_high(5,:)= xdot5(diff_amount);
+      xdot_high(6,:)= xdot6(diff_amount);
+      xdot_high(7,:)= xdot7(diff_amount);
       
-      q4 = -diff_amount;
-
-      xedot = qdot1 + l*qdot3*sin(q3) + le*(qdot3+qdot4)*sin(q3+q4); 
-      zedot = qdot2 - l*qdot3*cos(q3) - le*(qdot3+qdot4)*cos(q3+q4);
-      alpha_e = q3+q4-atan2(zedot,xedot);
-      Fe= rho*Se*sin(alpha_e)*(zedot.^2+xedot.^2);
-      xdot_low = x;
-      xdot_low(5,:)=-(Fw*sin(q3) + Fe*sin(q3+q4))/m;
-      xdot_low(6,:)=(Fw*cos(q3) + Fe*cos(q3+q4))/m -g;
-      xdot_low(7,:)=(Fw.*lw - Fe.*(l*cos(q4)+le))/I;
+      xdot_low(5,:) = xdot5(-diff_amount);
+      xdot_low(6,:) = xdot6(-diff_amount);
+      xdot_low(7,:) = xdot7(-diff_amount);
       
-      q4 = 0;
-
-      xedot = qdot1 + l*qdot3*sin(q3) + le*(qdot3+qdot4)*sin(q3+q4); 
-      zedot = qdot2 - l*qdot3*cos(q3) - le*(qdot3+qdot4)*cos(q3+q4);
-      alpha_e = q3+q4-atan2(zedot,xedot);
-      Fe = rho*Se*sin(alpha_e)*(zedot.^2+xedot.^2);
       xdot_affine = x;
-      xdot_affine(5,:)=-(Fw*sin(q3) + Fe*sin(q3+q4))/m;
-      xdot_affine(6,:)=(Fw*cos(q3) + Fe*cos(q3+q4))/m -g;
-      xdot_affine(7,:)=(Fw.*lw - Fe.*(l*cos(q4)+le))/I;
+      xdot_affine(5,:)= xdot5(0);
+      xdot_affine(6,:)= xdot6(0);
+      xdot_affine(7,:)= xdot7(0);
+      
 
       % take a numerical derivative for elevator force
       xdot=x;
@@ -108,6 +100,8 @@ classdef GliderPlantLinearizedElevAngle < DrakeSystem
       
       dx7_du = (xdot_high(7,:) - xdot_low(7,:)) / (2*diff_amount);
       xdot(7,:) = dx7_du * q4_input + xdot_affine(7,:);
+      
+
       
       % compute true value
       q4 = q4_input;
@@ -145,6 +139,25 @@ classdef GliderPlantLinearizedElevAngle < DrakeSystem
       
       % todo: enforce elevator constraints
       % phi_lo_limit < x(4) < phi_up_limit
+      % debug plots
+      
+      % create a plot for how xdot5/6/7 evolves with changing q4
+      
+      q4_range = -1:.01:1;
+      
+      for i = 1 : length(q4_range)
+        xdot7_range(i) = xdot7(q4_range(i));
+      end
+      
+      figure(1);
+      clf
+      plot(rad2deg(q4_range), rad2deg(xdot7_range));
+      hold on
+      plot(rad2deg(q4_range), rad2deg(xdot_affine(7,:) + dx7_du * q4_range), 'k-');
+      plot(rad2deg([q4_input q4_input]), rad2deg([xdot(7,:), xdot_true(7,:)]), 'r*');
+      xlabel('Position input (deg)');
+      ylabel('Pitch-dot-dot (deg/sec)');
+      
       
       if (nargout>1)
         [df]= dynamicsGradients(obj,t,x,u,nargout-1);

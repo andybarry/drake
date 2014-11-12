@@ -20,6 +20,8 @@ function verifyPositionControlledControlInput()
   gp = GliderPlant();
 
   gp_lu = GliderPlantLinearizedElevAngle();
+  
+  gv = GliderVisualizer(gp);
 
   %disp('constructing a Planar glider')
   options.floating = true;
@@ -35,30 +37,32 @@ function verifyPositionControlledControlInput()
 
   %    [X Z Pitch El Vx Vz PitDot Velev]
 
-%     u0 = 0;%rand(1)-.5;
-%     pitch = -2;
-%     phi = -1;
-%     xvel = 3+4;
-%     zvel = 1;
-%     pitchdot = 10;
-%     x = [0 0   pitch   phi  xvel  zvel    pitchdot]';
-%     %glider_xdot = gp.dynamics(0,x,u0)
-%     
-%     glider_xdot_linearized = gp_linearized.dynamics(0,x,u0)
-%     
-%     %glider_xdot = gp.dynamics(0, x, u0)
-%     
-%     %urdf_xdot = urdf_dynamics_planar(p,x,u0);
-%     %valuecheck(urdf_xdot,glider_xdot, 1e-7);
-%     
-%     urdf_xdot_3d = urdf_dynamics_3d(p2,x,u0)
-%     
-%     
-%     %glider_xdot - urdf_xdot_3d
-%     
-%     valuecheck(urdf_xdot_3d, glider_xdot_linearized, 1e-7);
-%     
-%   return
+    u0 = 0;%rand(1)-.5;
+    pitch = 0;
+    phi = -.8;
+    xvel = 6;
+    zvel = 0;
+    pitchdot = 0;
+    x = [0 0   pitch   phi  xvel  zvel    pitchdot]';
+    glider_xdot = gp.dynamics(0,x,u0)
+    
+    glider_xdot_linearized = gp_lu.dynamics(0,x,u0)
+    
+    gv.draw(0,x);
+    
+    %glider_xdot = gp.dynamics(0, x, u0)
+    
+    %urdf_xdot = urdf_dynamics_planar(p,x,u0);
+    %valuecheck(urdf_xdot,glider_xdot, 1e-7);
+    
+    urdf_xdot_3d = urdf_dynamics_3d(p2,x,u0)
+    
+    
+    %glider_xdot - urdf_xdot_3d
+    
+    valuecheck(urdf_xdot_3d, glider_xdot_linearized, 1e-7);
+    
+  return
 
 
   real_dynamics_tol = 20;
@@ -67,7 +71,7 @@ function verifyPositionControlledControlInput()
   disp(['Testing 3D with URDF against real dynamics, tolerance = ' num2str(real_dynamics_tol)]);
 
   
-  for i = 1:80
+  for i = 1:0%80
     
     % for the position controlled control surface, the input to GliderPlant (velocity)
     % is always 0
