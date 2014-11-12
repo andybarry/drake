@@ -104,20 +104,20 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
       control_surface_area = obj.span .* obj.control_surface_chord;
       [fCl, fCd, fCm, dfCl, dfCd, dfCm ] = RigidBodyWing.flatplate(obj.rho,control_surface_area,obj.chord);
 
-      obj.fCl_control_surface = @(aoa,u) fCl(aoa+u);
-      obj.fCd_control_surface = @(aoa,u) fCd(aoa+u);
-      obj.fCm_control_surface = @(aoa,u) fCm(aoa+u);
+      obj.fCl_control_surface = @(aoa,u) fCl(aoa-u);
+      obj.fCd_control_surface = @(aoa,u) fCd(aoa-u);
+      obj.fCm_control_surface = @(aoa,u) fCm(aoa-u);
 
-      obj.dfCl_control_surface_du = @(aoa,u) dfCl(aoa+u); % this is with respect to u, not aoa because u directly controls aoa
-      obj.dfCd_control_surface_du = @(aoa,u) dfCd(aoa+u);
-      obj.dfCm_control_surface_du = @(aoa,u) dfCm(aoa+u);
+      obj.dfCl_control_surface_du = @(aoa,u) -dfCl(aoa-u); % this is with respect to u, not aoa because u directly controls -aoa
+      obj.dfCd_control_surface_du = @(aoa,u) -dfCd(aoa-u);
+      obj.dfCm_control_surface_du = @(aoa,u) -dfCm(aoa-u);
       
-      % override fCM to accommodate shift in x-axis to aerodynamic center of
-      % control surface (note: this is flat plate specific)
-      % (lift and drag are uneffected)
-      r = obj.chord / 2 + obj.control_surface_chord / 2; % TODO: check if this is correct
-      obj.fCm_control_surface = @(aoa,u) obj.rho * r * sin(aoa+u) .* cos(aoa+u) * control_surface_area;
-      obj.dfCm_control_surface_du = @(aoa,u) obj.rho * r * (cos(aoa+u).^2 - sin(aoa+u).^2) * control_surface_area;
+%       % override fCM to accommodate shift in x-axis to aerodynamic center of
+%       % control surface (note: this is flat plate specific)
+%       % (lift and drag are uneffected)
+%       r = obj.chord / 2 + obj.control_surface_chord / 2; % TODO: check if this is correct
+%       obj.fCm_control_surface = @(aoa,u) obj.rho * r * sin(aoa+u) .* cos(aoa+u) * control_surface_area;
+%       obj.dfCm_control_surface_du = @(aoa,u) obj.rho * r * (cos(aoa+u).^2 - sin(aoa+u).^2) * control_surface_area;
     end
     
     function [force, B_force, dforce, dB_force] = computeSpatialForce(obj,manip,q,qd,xx)
@@ -333,7 +333,7 @@ classdef RigidBodyWingWithControlSurface < RigidBodyWing & RigidBodyElementWithS
 
         df_lift = Cl_linear * airspeed*airspeed;
         df_drag = Cd_linear * airspeed*airspeed;
-        dtorque_moment = Cm_linear * airspeed * airspeed;
+        dtorque_moment = 0;%Cm_linear * airspeed * airspeed;
         
         df_lift_axis = zeros(3,1);
         df_drag_axis = zeros(3,1);

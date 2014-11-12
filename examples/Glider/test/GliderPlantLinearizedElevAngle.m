@@ -67,47 +67,69 @@ classdef GliderPlantLinearizedElevAngle < DrakeSystem
       xedot = qdot1 + l*qdot3*sin(q3) + le*(qdot3+qdot4)*sin(q3+q4); 
       zedot = qdot2 - l*qdot3*cos(q3) - le*(qdot3+qdot4)*cos(q3+q4);
       alpha_e = q3+q4-atan2(zedot,xedot);
-      Fe_high = rho*Se*sin(alpha_e)*(zedot.^2+xedot.^2);
+      Fe = rho*Se*sin(alpha_e)*(zedot.^2+xedot.^2);
+      
+      xdot_high = x;
+      xdot_high(5,:)=-(Fw*sin(q3) + Fe*sin(q3+q4))/m;
+      xdot_high(6,:)=(Fw*cos(q3) + Fe*cos(q3+q4))/m -g;
+      xdot_high(7,:)=(Fw.*lw - Fe.*(l*cos(q4)+le))/I;
 
+      
       q4 = -diff_amount;
 
       xedot = qdot1 + l*qdot3*sin(q3) + le*(qdot3+qdot4)*sin(q3+q4); 
       zedot = qdot2 - l*qdot3*cos(q3) - le*(qdot3+qdot4)*cos(q3+q4);
       alpha_e = q3+q4-atan2(zedot,xedot);
-      Fe_low = rho*Se*sin(alpha_e)*(zedot.^2+xedot.^2);
+      Fe= rho*Se*sin(alpha_e)*(zedot.^2+xedot.^2);
+      xdot_low = x;
+      xdot_low(5,:)=-(Fw*sin(q3) + Fe*sin(q3+q4))/m;
+      xdot_low(6,:)=(Fw*cos(q3) + Fe*cos(q3+q4))/m -g;
+      xdot_low(7,:)=(Fw.*lw - Fe.*(l*cos(q4)+le))/I;
       
       q4 = 0;
 
       xedot = qdot1 + l*qdot3*sin(q3) + le*(qdot3+qdot4)*sin(q3+q4); 
       zedot = qdot2 - l*qdot3*cos(q3) - le*(qdot3+qdot4)*cos(q3+q4);
       alpha_e = q3+q4-atan2(zedot,xedot);
-      Fe_affine = rho*Se*sin(alpha_e)*(zedot.^2+xedot.^2);
+      Fe = rho*Se*sin(alpha_e)*(zedot.^2+xedot.^2);
+      xdot_affine = x;
+      xdot_affine(5,:)=-(Fw*sin(q3) + Fe*sin(q3+q4))/m;
+      xdot_affine(6,:)=(Fw*cos(q3) + Fe*cos(q3+q4))/m -g;
+      xdot_affine(7,:)=(Fw.*lw - Fe.*(l*cos(q4)+le))/I;
 
       % take a numerical derivative for elevator force
-      dFe_du = (Fe_high - Fe_low) / (2*diff_amount);
-
-      Fe_linearized = dFe_du * q4_input + Fe_affine;
+      xdot=x;
       
-      q4 = q4_input;
-
+      dx5_du = (xdot_high(5,:) - xdot_low(5,:)) / (2*diff_amount);
+      xdot(5,:) = dx5_du * q4_input + xdot_affine(5,:);
+      
+      dx6_du = (xdot_high(6,:) - xdot_low(6,:)) / (2*diff_amount);
+      xdot(6,:) = dx6_du * q4_input + xdot_affine(6,:);
+      
+      dx7_du = (xdot_high(7,:) - xdot_low(7,:)) / (2*diff_amount);
+      xdot(7,:) = dx7_du * q4_input + xdot_affine(7,:);
+      
+      
       xedot = qdot1 + l*qdot3*sin(q3) + le*(qdot3+qdot4)*sin(q3+q4); 
       zedot = qdot2 - l*qdot3*cos(q3) - le*(qdot3+qdot4)*cos(q3+q4);
       alpha_e = q3+q4-atan2(zedot,xedot);
-      Fe_true = rho*Se*sin(alpha_e)*(zedot.^2+xedot.^2);
-      
-      linearization_error = Fe_true - Fe_linearized
-      
-      Fe = Fe_linearized;
+      Fe = rho*Se*sin(alpha_e)*(zedot.^2+xedot.^2);
 
-      xdot=x;
+      xdot_true = x;
+      xdot_true(5,:)=-(Fw*sin(q3) + Fe*sin(q3+q4))/m;
+      xdot_true(6,:)=(Fw*cos(q3) + Fe*cos(q3+q4))/m -g;
+      xdot_true(7,:)=(Fw.*lw - Fe.*(l*cos(q4)+le))/I;
+      
+      
+      q4 = q4_input;
 
       xdot(4)=u(1);
 
-      xdot(5,:)=-(Fw*sin(q3) + Fe*sin(q3+q4))/m;
+      %xdot(5,:)=-(Fw*sin(q3) + Fe*sin(q3+q4))/m;
 
-      xdot(6,:)=(Fw*cos(q3) + Fe*cos(q3+q4))/m -g;
+      %xdot(6,:)=(Fw*cos(q3) + Fe*cos(q3+q4))/m -g;
 
-      xdot(7,:)=(Fw.*lw - Fe.*(l*cos(q4)+le))/I;
+      %xdot(7,:)=(Fw.*lw - Fe.*(l*cos(q4)+le))/I;
 
       xdot(1,:)=x(5,:);
 
