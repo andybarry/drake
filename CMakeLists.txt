@@ -1,4 +1,8 @@
 cmake_minimum_required(VERSION 2.8.6) # for UseJava.cmake
+#cmake_policy(SET CMP0042 NEW)
+if (POLICY CMP0054)
+  cmake_policy(SET CMP0054 OLD)  # so variables inside quotes are still evaluated in if() statements
+endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
@@ -35,6 +39,17 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
 #    # http://stackoverflow.com/questions/13445742/apple-and-shared-ptr
    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
   endif()
+elseif (MSVC)
+#  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /arch:SSE2 /openmp")
+#  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:SSE2 /openmp")
+
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4251")
+    # disable warning C4251: e.g.'RigidBody::linkname' : class 'std::basic_string<_Elem,_Traits,_Ax>' needs to have dll-interface to be used by clients of class 'RigidBody'
+    # followed by template linking errors.  After reading, e.g.:
+    #   https://connect.microsoft.com/VisualStudio/feedback/details/696593/vc-10-vs-2010-basic-string-exports
+    # I think we're not being sufficiently careful with our library interfaces (on other platforms as well) - Russ
+
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4996") # disable sprintf security warning
 endif()
 
 # set up matlab build
@@ -156,5 +171,5 @@ endif()
 add_test(NAME "RigidBodyManipulatorMemoryTest"
 	WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/examples/Acrobot"
 	COMMAND "matlab" #"${CMAKE_SOURCE_DIR}/cmake/matlab_clean.pl"
-	"-nosplash" "-nodisplay" "-r" "addpath('${CMAKE_INSTALL_PREFIX}/matlab'); addpath_${POD_NAME}; try, r = RigidBodyManipulator('Acrobot.urdf'); megaclear; catch ex, disp(getReport(ex,'extended')); disp(''); knownIssue('$testname',ex); force_close_system; exit(1); end; force_close_system; exit(0)")
+	"-nosplash" "-nodisplay" "-r" "addpath('${CMAKE_INSTALL_PREFIX}/matlab'); addpath_${POD_NAME}; try, r = RigidBodyManipulator('Acrobot.urdf'); megaclear; catch ex, disp(getReport(ex,'extended')); disp(''); force_close_system; exit(1); end; force_close_system; exit(0)")
 set_tests_properties(RigidBodyManipulatorMemoryTest PROPERTIES TIMEOUT 60)

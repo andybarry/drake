@@ -2,12 +2,15 @@
 #include <map>
 
 //#include "mex.h"
+#include "drakeGeometryUtil.h"
 #include "RigidBodyManipulator.h"
-#include "makeUnique.h"
+#include "DrakeJoint.h"
+
 #include <algorithm>
 #include <string>
 #include <regex>
 #include <stdexcept>
+#include <limits>
 
 //DEBUG
 //#include <stdexcept>
@@ -262,8 +265,9 @@ void rotz(double theta, Matrix3d &M, Matrix3d &dM, Matrix3d &ddM)
 
 
 RigidBodyManipulator::RigidBodyManipulator(int ndof, int num_featherstone_bodies, int num_rigid_body_objects, int num_rigid_body_frames)
-  :  collision_model(DrakeCollision::newModel())
+  :  collision_model(DrakeCollision::newModel()), collision_model_no_margins(DrakeCollision::newModel())
 {
+  use_new_kinsol = false;
   num_dof=0; NB=0; num_bodies=0; num_frames=0;
   a_grav = VectorXd::Zero(6);
   resize(ndof,num_featherstone_bodies,num_rigid_body_objects,num_rigid_body_frames);
@@ -284,8 +288,8 @@ void RigidBodyManipulator::resize(int ndof, int num_featherstone_bodies, int num
   joint_limit_min.conservativeResize(num_dof);
   joint_limit_max.conservativeResize(num_dof);
   for (int i=last_num_dof; i<num_dof; i++) {
-    joint_limit_min[i] = -1.0/0.0;
-    joint_limit_max[i] = 1.0/0.0;
+    joint_limit_min[i] = -std::numeric_limits<double>::infinity(); 
+    joint_limit_max[i] = std::numeric_limits<double>::infinity(); 
   }
 
   if (num_featherstone_bodies<0)
@@ -328,7 +332,7 @@ void RigidBodyManipulator::resize(int ndof, int num_featherstone_bodies, int num
 
   bodies.reserve(num_bodies);
   for (int i = last_num_bodies; i < num_bodies; i++) {
-    bodies.push_back(make_unique<RigidBody>());
+    bodies.push_back(std::unique_ptr<RigidBody>(new RigidBody()));
     bodies[i]->dofnum = i - 1;
   } // setup default dofnums
 
@@ -337,6 +341,7 @@ void RigidBodyManipulator::resize(int ndof, int num_featherstone_bodies, int num
   }
 
   collision_model->resize(num_bodies);
+  collision_model_no_margins->resize(num_bodies);
 
   num_frames = num_rigid_body_frames;
   frames.resize(num_frames);
@@ -418,15 +423,17 @@ void RigidBodyManipulator::compile(void)
   initialized=true;
 }
 
-void RigidBodyManipulator::addCollisionElement(const int body_ind, Matrix4d T_elem_to_lnk, DrakeCollision::Shape shape, vector<double> params, string group_name)
+void RigidBodyManipulator::addCollisionElement(const int body_ind, const Matrix4d & T_elem_to_lnk, DrakeCollision::Shape shape, vector<double> params, string group_name)
 {
   bool is_static = (bodies[body_ind]->parent==0);
-  collision_model->addElement(body_ind,bodies[body_ind]->parent,T_elem_to_lnk,shape,params,group_name,is_static);
+  collision_model->addElement(body_ind,bodies[body_ind]->parent,T_elem_to_lnk,shape,params,group_name,is_static, true);
+  collision_model_no_margins->addElement(body_ind,bodies[body_ind]->parent,T_elem_to_lnk,shape,params,group_name,is_static, false);
 }
 
 void RigidBodyManipulator::updateCollisionElements(const int body_ind)
 {
   collision_model->updateElementsForBody(body_ind, bodies[body_ind]->T);
+  collision_model_no_margins->updateElementsForBody(body_ind, bodies[body_ind]->T);
 };
 
 bool RigidBodyManipulator::setCollisionFilter(const int body_ind,
@@ -437,12 +444,19 @@ bool RigidBodyManipulator::setCollisionFilter(const int body_ind,
   //cout << "RigidBodyManipulator::setCollisionFilter: Group: " << group << endl;
   //cout << "RigidBodyManipulator::setCollisionFilter: Mask: " << mask << endl;
   //END_DEBUG
-  return collision_model->setCollisionFilter(body_ind,group,mask);
+  bool status_one = collision_model->setCollisionFilter(body_ind,group,mask);
+  bool status_two = collision_model_no_margins->setCollisionFilter(body_ind, group, mask);
+  assert(status_one == status_two);
+  return status_one && status_two;
 }
 
-bool RigidBodyManipulator::getPairwiseCollision(const int body_indA, const int body_indB, MatrixXd &ptsA, MatrixXd &ptsB, MatrixXd &normals)
+bool RigidBodyManipulator::getPairwiseCollision(const int body_indA, const int body_indB, 
+        MatrixXd &ptsA, MatrixXd &ptsB, MatrixXd &normals, bool use_margins)
 {
-  return collision_model->getPairwiseCollision(body_indA,body_indB,ptsA,ptsB,normals);
+  if (use_margins)
+    return collision_model->getPairwiseCollision(body_indA,body_indB,ptsA,ptsB,normals);
+  else
+    return collision_model_no_margins->getPairwiseCollision(body_indA,body_indB,ptsA,ptsB,normals);
 };
 
 bool RigidBodyManipulator::getPairwisePointCollision(const int body_indA,
@@ -450,11 +464,17 @@ bool RigidBodyManipulator::getPairwisePointCollision(const int body_indA,
                                                      const int body_collision_indA,
                                                      Vector3d &ptA,
                                                      Vector3d &ptB,
-                                                     Vector3d &normal)
+                                                     Vector3d &normal, 
+                                                     bool use_margins)
 {
-  if (collision_model->getPairwisePointCollision(body_indA, body_indB,
+  if ( (use_margins && collision_model->getPairwisePointCollision(body_indA, body_indB,
           body_collision_indA,
-          ptA,ptB,normal)) {
+          ptA,ptB,normal)) 
+       ||
+       (!use_margins && collision_model_no_margins->getPairwisePointCollision(body_indA, body_indB,
+          body_collision_indA,
+          ptA,ptB,normal))
+     ) {
     return true;
   } else {
 		ptA << 1,1,1;
@@ -467,10 +487,17 @@ bool RigidBodyManipulator::getPairwisePointCollision(const int body_indA,
 bool RigidBodyManipulator::getPointCollision(const int body_ind,
                                              const int body_collision_ind,
                                              Vector3d &ptA, Vector3d &ptB,
-                                             Vector3d &normal)
+                                             Vector3d &normal, 
+                                             bool use_margins)
 {
-  if (collision_model->getPointCollision(body_ind, body_collision_ind, ptA,ptB,
-          normal)) {
+  if ( (use_margins && 
+          collision_model->getPointCollision(body_ind, body_collision_ind, ptA,ptB,
+          normal))
+       ||
+       (!use_margins && 
+          collision_model_no_margins->getPointCollision(body_ind, body_collision_ind, ptA,ptB,
+          normal))
+     ){
     return true;
   } else {
     ptA << 1,1,1;
@@ -480,14 +507,28 @@ bool RigidBodyManipulator::getPointCollision(const int body_ind,
   }
 };
 
-bool RigidBodyManipulator::getPairwiseClosestPoint(const int body_indA, const int body_indB, Vector3d &ptA, Vector3d &ptB, Vector3d &normal, double &distance)
+bool RigidBodyManipulator::getPairwiseClosestPoint(const int body_indA, 
+                                             const int body_indB, 
+                                             Vector3d &ptA, Vector3d &ptB,
+                                             Vector3d &normal, 
+                                             double &distance, 
+                                             bool use_margins)
 {
-  return collision_model->getClosestPoints(body_indA,body_indB,ptA,ptB,normal,distance);
+  if (use_margins)
+    return collision_model->getClosestPoints(body_indA,body_indB,ptA,ptB,normal,distance);
+  else
+    return collision_model_no_margins->getClosestPoints(body_indA,body_indB,ptA,ptB,normal,distance);
 };
 
-bool RigidBodyManipulator::collisionRaycast(const Matrix3Xd &origins, const Matrix3Xd &ray_endpoints, VectorXd &distances)
+bool RigidBodyManipulator::collisionRaycast(const Matrix3Xd &origins, 
+                                            const Matrix3Xd &ray_endpoints, 
+                                            VectorXd &distances, 
+                                            bool use_margins )
 {
-  return collision_model->collisionRaycast(origins, ray_endpoints, distances);
+  if (use_margins)
+    return collision_model->collisionRaycast(origins, ray_endpoints, distances);
+  else
+    return collision_model_no_margins->collisionRaycast(origins, ray_endpoints, distances);
 }
 
 bool RigidBodyManipulator::collisionDetect( VectorXd& phi,
@@ -497,9 +538,14 @@ bool RigidBodyManipulator::collisionDetect( VectorXd& phi,
                                             vector<int>& bodyA_idx,
                                             vector<int>& bodyB_idx,
                                             const vector<int>& bodies_idx,
-                                            const set<string>& active_element_groups)
+                                            const set<string>& active_element_groups,
+                                            bool use_margins)
 {
-  return collision_model->closestPointsAllBodies(bodyA_idx,bodyB_idx,xA,xB,
+  if (use_margins)
+    return collision_model->closestPointsAllBodies(bodyA_idx,bodyB_idx,xA,xB,
+      normal,phi,bodies_idx,active_element_groups);
+  else
+    return collision_model_no_margins->closestPointsAllBodies(bodyA_idx,bodyB_idx,xA,xB,
       normal,phi,bodies_idx,active_element_groups);
 }
 
@@ -509,9 +555,14 @@ bool RigidBodyManipulator::collisionDetect( VectorXd& phi,
                                             MatrixXd& xB,
                                             vector<int>& bodyA_idx, 
                                             vector<int>& bodyB_idx,
-                                            const vector<int>& bodies_idx)
+                                            const vector<int>& bodies_idx,
+                                            bool use_margins)
 {
-  return collision_model->closestPointsAllBodies(bodyA_idx,bodyB_idx,xA,xB,
+  if (use_margins)
+    return collision_model->closestPointsAllBodies(bodyA_idx,bodyB_idx,xA,xB,
+      normal,phi,bodies_idx);
+  else
+    return collision_model_no_margins->closestPointsAllBodies(bodyA_idx,bodyB_idx,xA,xB,
       normal,phi,bodies_idx);
 }
 
@@ -521,9 +572,14 @@ bool RigidBodyManipulator::collisionDetect( VectorXd& phi,
                                             MatrixXd& xB,
                                             vector<int>& bodyA_idx, 
                                             vector<int>& bodyB_idx,
-                                            const set<string>& active_element_groups)
+                                            const set<string>& active_element_groups,
+                                            bool use_margins)
 {
-  return collision_model->closestPointsAllBodies(bodyA_idx,bodyB_idx,xA,xB,
+  if (use_margins)
+    return collision_model->closestPointsAllBodies(bodyA_idx,bodyB_idx,xA,xB,
+      normal,phi,active_element_groups);
+  else
+    return collision_model_no_margins->closestPointsAllBodies(bodyA_idx,bodyB_idx,xA,xB,
       normal,phi,active_element_groups);
 }
 
@@ -532,16 +588,24 @@ bool RigidBodyManipulator::collisionDetect( VectorXd& phi,
                                             MatrixXd& xA, 
                                             MatrixXd& xB,
                                             vector<int>& bodyA_idx, 
-                                            vector<int>& bodyB_idx)
+                                            vector<int>& bodyB_idx,
+                                            bool use_margins)
 {
-  return collision_model->closestPointsAllBodies(bodyA_idx,bodyB_idx,xA,xB,normal,phi);
+  if (use_margins)
+    return collision_model->closestPointsAllBodies(bodyA_idx,bodyB_idx,xA,xB,normal,phi);
+  else
+    return collision_model_no_margins->closestPointsAllBodies(bodyA_idx,bodyB_idx,xA,xB,normal,phi);
 }
 
 bool RigidBodyManipulator::allCollisions(vector<int>& bodyA_idx,
                                          vector<int>& bodyB_idx,
-                                         MatrixXd& ptsA, MatrixXd& ptsB)
+                                         MatrixXd& ptsA, MatrixXd& ptsB,
+                                         bool use_margins)
 {
-  return collision_model->allCollisions(bodyA_idx, bodyB_idx, ptsA, ptsB);
+  if (use_margins)
+    return collision_model->allCollisions(bodyA_idx, bodyB_idx, ptsA, ptsB);
+  else
+    return collision_model_no_margins->allCollisions(bodyA_idx, bodyB_idx, ptsA, ptsB);
 }
 
 
@@ -559,6 +623,10 @@ bool RigidBodyManipulator::allCollisions(vector<int>& bodyA_idx,
 
 void RigidBodyManipulator::doKinematics(double* q, bool b_compute_second_derivatives, double* qd)
 {
+  if (use_new_kinsol) {
+    doKinematicsNew(q, true, qd, true);
+  }
+
   //DEBUG
   //try{
   //END_DEBUG
@@ -792,6 +860,7 @@ void RigidBodyManipulator::doKinematics(double* q, bool b_compute_second_derivat
       //cout << "RigidBodyManipulator::doKinematics: updating body " << i << " ..." << endl;
       //END_DEBUG
       collision_model->updateElementsForBody(i,bodies[i]->T);
+      collision_model_no_margins->updateElementsForBody(i,bodies[i]->T);
       //DEBUG
       //cout << "RigidBodyManipulator::doKinematics: done updating body " << i << endl;
       //END_DEBUG
@@ -812,6 +881,147 @@ void RigidBodyManipulator::doKinematics(double* q, bool b_compute_second_derivat
   //END_DEBUG
 }
 
+void RigidBodyManipulator::doKinematicsNew(double* q, bool compute_gradients, double* v, bool compute_JdotV) {
+  int nq = num_dof;
+  int nv = num_dof; // FIXME
+
+  // other bodies
+  for (int i = 0; i < bodies.size(); i++) {
+    RigidBody& body = *bodies[i];
+
+    if (body.hasParent()) {
+      double* q_body = &q[body.dofnum];
+
+      // transform
+      Isometry3d T_body_to_parent = Isometry3d(body.Ttree) * body.getJoint().jointTransform(q_body); // TODO: Matrix4d -> Isometry3d conversion
+      Isometry3d T = Isometry3d(bodies[body.parent]->T) * T_body_to_parent;
+      body.T = T.matrix(); // TODO: Isometry3d -> Matrix4d conversion
+
+      // motion subspace in body frame
+      Eigen::MatrixXd* dSdq = compute_gradients ? &(body.dSdqi) : nullptr;
+      body.getJoint().motionSubspace(q_body, body.S, dSdq);
+
+      // motion subspace in world frame
+      body.J = transformSpatialMotion(T, body.S);
+
+      // qdot to v
+      Eigen::MatrixXd* dqdot_to_v = compute_gradients ? &(body.dqdot_to_v_dqi) : nullptr;
+      body.getJoint().qdot2v(q, body.qdot_to_v, dqdot_to_v);
+
+      // v to qdot
+      Eigen::MatrixXd* dv_to_qdot = compute_gradients ? &(body.dv_to_qdot_dqi) : nullptr;
+      body.getJoint().v2qdot(q, body.v_to_qdot, dv_to_qdot);
+
+      if (compute_gradients) {
+        // gradient of transform
+        auto dT_body_to_parentdqi = dHomogTrans(T_body_to_parent, body.S, body.qdot_to_v).eval();
+        body.dTdq_new.setZero();
+        Gradient<Isometry3d::MatrixType, Eigen::Dynamic>::type dT_body_to_parentdq(HOMOGENEOUS_TRANSFORM_SIZE, nq);
+        dT_body_to_parentdq.setZero();
+        dT_body_to_parentdq.middleCols(body.dofnum, body.getJoint().getNumPositions()) = dT_body_to_parentdqi;
+        body.dTdq_new = matGradMultMat(bodies[body.parent]->T, T_body_to_parent.matrix(), bodies[body.parent]->dTdq_new, dT_body_to_parentdq);
+
+        // gradient of motion subspace in world
+        MatrixXd dSdq = MatrixXd::Zero(body.S.size(), nq);
+        dSdq.middleCols(body.dofnum, body.getJoint().getNumPositions()) = body.dSdqi;
+        body.dJdq = dTransformAdjoint(T, body.S, body.dTdq_new, dSdq);
+      }
+
+      if (v) {
+        // twist
+        double* v_body = &v[body.dofnum]; // FIXME: using dofnum for velocity...
+        Map<VectorXd> v_body_map(v_body, body.getJoint().getNumVelocities());
+        typedef Matrix<double, TWIST_SIZE, 1> Vector6d;
+        Vector6d joint_twist = body.J * v_body_map;
+        body.twist = bodies[body.parent]->twist + joint_twist;
+
+        Gradient<Vector6d, Eigen::Dynamic>::type djoint_twistdq(TWIST_SIZE, nq);
+        if (compute_gradients) {
+          djoint_twistdq = matGradMult(body.dJdq, v_body_map);
+          // dtwistdq
+          body.dtwistdq = bodies[body.parent]->dtwistdq + djoint_twistdq;
+        }
+
+        if (compute_JdotV) {
+          // Sdotv
+          auto dSdotVdqi = compute_gradients ? &body.dSdotVdqi : nullptr;
+          auto dSdotVdvi = compute_gradients ? &body.dSdotVdvi : nullptr;
+          body.getJoint().motionSubspaceDotTimesV(q_body, v_body, body.SdotV, dSdotVdqi, dSdotVdvi);
+
+          // Jdotv
+          auto joint_accel = (crm(body.twist) * joint_twist + transformSpatialMotion(T, body.SdotV)).eval();
+          body.JdotV = bodies[body.parent]->JdotV + joint_accel;
+
+          if (compute_gradients) {
+            // dJdotvdq
+            // TODO: exploit sparsity better
+            Matrix<double, TWIST_SIZE, Eigen::Dynamic> dSdotVdq(TWIST_SIZE, nq);
+            dSdotVdq.setZero();
+            dSdotVdq.middleCols(body.dofnum, body.getJoint().getNumPositions()) = body.dSdotVdqi;
+            MatrixXd dcrm_twist_joint_twistdq(TWIST_SIZE, nq);
+            dcrm(body.twist, joint_twist, body.dtwistdq, djoint_twistdq, &dcrm_twist_joint_twistdq); // TODO: make dcrm templated
+            body.dJdotVdq = bodies[body.parent]->dJdotVdq
+                + dcrm_twist_joint_twistdq
+                + dTransformAdjoint(T, body.SdotV, body.dTdq_new, dSdotVdq);
+
+            // dJdotvdv
+            // TODO: exploit sparsity better
+            Matrix<double, TWIST_SIZE, Eigen::Dynamic> jacobian(TWIST_SIZE, 0);
+            std::vector<int> v_indices;
+            geometricJacobian(0, i, 0, jacobian, &v_indices);
+
+            Matrix<double, TWIST_SIZE, Eigen::Dynamic> dtwistdv(TWIST_SIZE, nv);
+            dtwistdv.setZero();
+            for (int j = 0; j < v_indices.size(); j++) {
+              dtwistdv.col(v_indices[j]) = jacobian.col(j);
+            }
+            Matrix<double, TWIST_SIZE, Eigen::Dynamic> djoint_twistdv(TWIST_SIZE, nv);
+            djoint_twistdv.setZero();
+            djoint_twistdv.middleCols(body.dofnum, body.getJoint().getNumVelocities()) = body.S; // FIXME: using dofnum for velocity...
+
+            MatrixXd djoint_acceldv(TWIST_SIZE, nv);
+            dcrm(body.twist, joint_twist, dtwistdv, djoint_twistdv, &djoint_acceldv);
+            Matrix<double, TWIST_SIZE, Eigen::Dynamic> dSdotVdv(TWIST_SIZE, nv);
+            dSdotVdv.setZero();
+            dSdotVdv.middleCols(body.dofnum, body.getJoint().getNumVelocities()) = *dSdotVdvi; // FIXME: using dofnum for velocity...
+            djoint_acceldv += transformSpatialMotion(T, dSdotVdv);
+            body.dJdotVdv = bodies[body.parent]->dJdotVdv + djoint_acceldv;
+          }
+        }
+      }
+      else {
+        body.T = body.Ttree;
+        // motion subspace in body frame is empty
+        // motion subspace in world frame is empty
+        // qdot to v is empty
+        // v to qdot is empty
+        if (compute_gradients) {
+          // gradient of transform
+          body.dTdq_new.setZero();
+          // gradient of motion subspace in world is empty
+        }
+        if (v) {
+          body.twist.setZero();
+          if (compute_gradients) {
+            body.dtwistdq.setZero();
+          }
+          if (compute_JdotV) {
+            body.SdotV.setZero();
+            if (compute_gradients) {
+              body.dSdotVdqi.setZero();
+              body.dSdotVdvi.setZero();
+            }
+            body.JdotV.setZero();
+            if (compute_gradients) {
+              body.dJdotVdq.setZero();
+              body.dJdotVdv.setZero();
+            }
+          }
+        }
+      }
+    }
+  }
+}
 
 template <typename Derived>
 void RigidBodyManipulator::getCMM(double* const q, double* const qd, MatrixBase<Derived> &A, MatrixBase<Derived> &Adot)
@@ -965,29 +1175,29 @@ void RigidBodyManipulator::getCOMdJac(MatrixBase<Derived> &dJcom, const std::set
 
 int RigidBodyManipulator::getNumContacts(const set<int> &body_idx)
 {
-  int n=0,nb=body_idx.size(),bi;
+  size_t n=0,nb=body_idx.size(),bi;
   if (nb==0) nb=num_bodies;
   set<int>::iterator iter = body_idx.begin();
-  for (int i=0; i<nb; i++) {
+  for (size_t i=0; i<nb; i++) {
     if (body_idx.size()==0) bi=i;
     else bi=*iter++;
     n += bodies[bi]->contact_pts.cols();
   }
-  return n;
+  return static_cast<int>(n);
 }
 
 
 template <typename Derived>
 void RigidBodyManipulator::getContactPositions(MatrixBase<Derived> &pos, const set<int> &body_idx)
 {
-  int n=0,nc,nb=body_idx.size(),bi;
+  int n=0,nc,nb=static_cast<int>(body_idx.size()),bi;
   if (nb==0) nb=num_bodies;
   set<int>::iterator iter = body_idx.begin();
   MatrixXd p;
   for (int i=0; i<nb; i++) {
     if (body_idx.size()==0) bi=i;
     else bi=*iter++;
-    nc = bodies[bi]->contact_pts.cols();
+    nc = static_cast<int>(bodies[bi]->contact_pts.cols());
     if (nc>0) {
       // note: it's possible to pass pos.block in directly but requires such an ugly hack that I think it's not worth it:
       // http://eigen.tuxfamily.org/dox/TopicFunctionTakingEigenTypes.html
@@ -1002,14 +1212,14 @@ void RigidBodyManipulator::getContactPositions(MatrixBase<Derived> &pos, const s
 template <typename Derived>
 void RigidBodyManipulator::getContactPositionsJac(MatrixBase<Derived> &J, const set<int> &body_idx)
 {
-  int n=0,nc,nb=body_idx.size(),bi;
+  int n=0,nc,nb=static_cast<int>(body_idx.size()),bi;
   if (nb==0) nb=num_bodies;
   set<int>::iterator iter = body_idx.begin();
   MatrixXd p;
   for (int i=0; i<nb; i++) {
     if (body_idx.size()==0) bi=i;
     else bi=*iter++;
-    nc = bodies[bi]->contact_pts.cols();
+    nc = static_cast<int>(bodies[bi]->contact_pts.cols());
     if (nc>0) {
       p.resize(3*nc,num_dof);
       forwardJac(bi,bodies[bi]->contact_pts,0,p);
@@ -1022,14 +1232,14 @@ void RigidBodyManipulator::getContactPositionsJac(MatrixBase<Derived> &J, const 
 template <typename Derived>
 void RigidBodyManipulator::getContactPositionsJacDot(MatrixBase<Derived> &Jdot, const set<int> &body_idx)
 {
-  int n=0,nc,nb=body_idx.size(),bi;
+  int n=0,nc,nb=static_cast<int>(body_idx.size()),bi;
   if (nb==0) nb=num_bodies;
   set<int>::iterator iter = body_idx.begin();
   MatrixXd p;
   for (int i=0; i<nb; i++) {
     if (body_idx.size()==0) bi=i;
     else bi=*iter++;
-    nc = bodies[bi]->contact_pts.cols();
+    nc = static_cast<int>(bodies[bi]->contact_pts.cols());
     if (nc>0) {
       p.resize(3*nc,num_dof);
       forwardJacDot(bi,bodies[bi]->contact_pts,0,p);
@@ -1040,7 +1250,7 @@ void RigidBodyManipulator::getContactPositionsJacDot(MatrixBase<Derived> &Jdot, 
 }
 
 /* [body_ind,Tframe] = parseBodyOrFrameID(body_or_frame_id) */
-int RigidBodyManipulator::parseBodyOrFrameID(const int body_or_frame_id, Matrix4d& Tframe)
+int RigidBodyManipulator::parseBodyOrFrameID(const int body_or_frame_id, Matrix4d* Tframe)
 {
   int body_ind=0;
   if (body_or_frame_id == -1) {
@@ -1048,12 +1258,83 @@ int RigidBodyManipulator::parseBodyOrFrameID(const int body_or_frame_id, Matrix4
   } else if (body_or_frame_id<0) {
     int frame_ind = -body_or_frame_id-2;
     body_ind = frames[frame_ind].body_ind;
-    Tframe = frames[frame_ind].T;
+
+    if (Tframe)
+      (*Tframe) = frames[frame_ind].Ttree;
   } else {
     body_ind = body_or_frame_id;
-    Tframe = Matrix4d::Identity();
+    if (Tframe)
+      (*Tframe) = Matrix4d::Identity();
   }
   return body_ind;
+}
+
+void RigidBodyManipulator::findAncestorBodies(std::vector<int>& ancestor_bodies, int body_idx)
+{
+  const RigidBody* current_body = bodies[body_idx].get();
+  while (current_body->parent != -1)
+  {
+    ancestor_bodies.push_back(current_body->parent);
+    current_body = bodies[current_body->parent].get();
+  }
+}
+
+void RigidBodyManipulator::findKinematicPath(KinematicPath& path, int start_body_or_frame_idx, int end_body_or_frame_idx)
+{
+  // find all ancestors of start_body and end_body
+  int start_body = parseBodyOrFrameID(start_body_or_frame_idx);
+
+  std::vector<int> start_body_ancestors;
+  start_body_ancestors.push_back(start_body);
+  findAncestorBodies(start_body_ancestors, start_body);
+
+  int end_body = parseBodyOrFrameID(end_body_or_frame_idx);
+  std::vector<int> end_body_ancestors;
+  end_body_ancestors.push_back(end_body);
+  findAncestorBodies(end_body_ancestors, end_body);
+
+  // find least common ancestor
+  size_t common_size = std::min(start_body_ancestors.size(), end_body_ancestors.size());
+  bool least_common_ancestor_found = false;
+  std::vector<int>::iterator start_body_lca_it = start_body_ancestors.end() - common_size;
+  std::vector<int>::iterator end_body_lca_it = end_body_ancestors.end() - common_size;
+
+  for (size_t i = 0; i < common_size; i++) {
+    if (*start_body_lca_it == *end_body_lca_it) {
+      least_common_ancestor_found = true;
+      break;
+    }
+    start_body_lca_it++;
+    end_body_lca_it++;
+  }
+
+  if (!least_common_ancestor_found) {
+    std::ostringstream stream;
+    stream << "There is no path between " << bodies[start_body]->linkname << " and " << bodies[end_body]->linkname << ".";
+    throw std::runtime_error(stream.str());
+  }
+  int least_common_ancestor = *start_body_lca_it;
+
+  // compute path
+  path.joint_path.clear();
+  path.joint_direction_signs.clear();
+  path.body_path.clear();
+
+  std::vector<int>::iterator it = start_body_ancestors.begin();
+  for ( ; it != start_body_lca_it; it++) {
+    path.joint_path.push_back(*it);
+    path.joint_direction_signs.push_back(-1);
+    path.body_path.push_back(*it);
+  }
+
+  path.body_path.push_back(least_common_ancestor);
+
+  std::vector<int>::reverse_iterator reverse_it(end_body_lca_it);
+  for ( ; reverse_it != end_body_ancestors.rend(); reverse_it++) {
+    path.joint_path.push_back(*reverse_it);
+    path.joint_direction_signs.push_back(1);
+    path.body_path.push_back(*reverse_it);
+  }
 }
 
 /*
@@ -1065,8 +1346,8 @@ int RigidBodyManipulator::parseBodyOrFrameID(const int body_or_frame_id, Matrix4
 template <typename DerivedA, typename DerivedB>
 void RigidBodyManipulator::forwardKin(const int body_or_frame_id, const MatrixBase<DerivedA>& pts, const int rotation_type, MatrixBase<DerivedB> &x)
 {
-  int n_pts = pts.cols(); Matrix4d Tframe;
-  int body_ind = parseBodyOrFrameID(body_or_frame_id,Tframe);
+  int n_pts = static_cast<int>(pts.cols()); Matrix4d Tframe;
+  int body_ind = parseBodyOrFrameID(body_or_frame_id, &Tframe);
 
   MatrixXd T = bodies[body_ind]->T.topLeftCorner(3,4)*Tframe;
 
@@ -1129,7 +1410,7 @@ template <typename DerivedA, typename DerivedB, typename DerivedC, typename Deri
 void RigidBodyManipulator::bodyKin(const int body_or_frame_id, const MatrixBase<DerivedA>& pts, MatrixBase<DerivedB> &x, MatrixBase<DerivedC> *J, MatrixBase<DerivedD> *P)
 {
   Matrix4d Tframe;
-  int body_ind = parseBodyOrFrameID(body_or_frame_id,Tframe);
+  int body_ind = parseBodyOrFrameID(body_or_frame_id, &Tframe);
 
   MatrixXd Tinv = (bodies[body_ind]->T*Tframe).inverse();
   x = Tinv.topLeftCorner(3,4)*pts;
@@ -1158,11 +1439,108 @@ void RigidBodyManipulator::bodyKin(const int body_or_frame_id, const MatrixBase<
 
 }
 
+template<typename DerivedA>
+void RigidBodyManipulator::geometricJacobian(int base_body_or_frame_ind, int end_effector_body_or_frame_ind, int expressed_in_body_or_frame_ind, PlainObjectBase<DerivedA>& J, std::vector<int>* v_indices)
+{
+  // TODO: gradient
+  if (use_new_kinsol) {
+    KinematicPath kinematic_path;
+    findKinematicPath(kinematic_path, base_body_or_frame_ind, end_effector_body_or_frame_ind);
+
+    int cols = 0;
+    int body_index;
+    for (int i = 0; i < kinematic_path.joint_path.size(); i++) {
+      body_index = kinematic_path.joint_path[i];
+      const std::unique_ptr<RigidBody>& body = bodies[body_index];
+      const DrakeJoint& joint = body->getJoint();
+      cols += joint.getNumVelocities();
+    }
+
+    J.resize(TWIST_SIZE, cols);
+    DrakeJoint::MotionSubspaceType motion_subspace;
+    if (v_indices) {
+      v_indices->clear();
+      v_indices->reserve(cols);
+    }
+
+    int col_start = 0;
+    int sign;
+    for (int i = 0; i < kinematic_path.joint_path.size(); i++) {
+      body_index = kinematic_path.joint_path[i];
+      RigidBody& body = *bodies[body_index];
+      const DrakeJoint& joint = body.getJoint();
+      sign = kinematic_path.joint_direction_signs[i];
+      auto block = J.template block<TWIST_SIZE, Dynamic>(0, col_start, TWIST_SIZE, joint.getNumVelocities());
+      block.noalias() = sign * body.J;
+
+      if (v_indices) {
+        for (int j = 0; j < joint.getNumVelocities(); j++) {
+          v_indices->push_back(body.dofnum + j); // FLOATINGBASE TODO: assumes qd = v
+        }
+      }
+      col_start = col_start + joint.getNumVelocities();
+    }
+
+    if (expressed_in_body_or_frame_ind != 0) {
+      Matrix4d Tframe;
+      int expressed_in_body = parseBodyOrFrameID(expressed_in_body_or_frame_ind, &Tframe);
+      Matrix4d T_world_to_frame = (bodies[expressed_in_body]->T * Tframe).inverse();
+      J = transformSpatialMotion(Isometry3d(T_world_to_frame), J);
+    }
+  }
+  else {
+    KinematicPath kinematic_path;
+    findKinematicPath(kinematic_path, base_body_or_frame_ind, end_effector_body_or_frame_ind);
+
+    int cols = 0;
+    int body_index;
+    for (int i = 0; i < kinematic_path.joint_path.size(); i++) {
+      body_index = kinematic_path.joint_path[i];
+      const std::unique_ptr<RigidBody>& body = bodies[body_index];
+      const DrakeJoint& joint = body->getJoint();
+      cols += joint.getNumVelocities();
+    }
+
+    Matrix4d Tframe;
+    int expressed_in_body = parseBodyOrFrameID(expressed_in_body_or_frame_ind, &Tframe);
+    Matrix4d T_world_to_frame = (bodies[expressed_in_body]->T * Tframe).inverse();
+
+    J.resize(TWIST_SIZE, cols);
+    DrakeJoint::MotionSubspaceType motion_subspace;
+    if (v_indices) {
+      v_indices->clear();
+      v_indices->reserve(cols);
+    }
+
+    int col_start = 0;
+    int sign;
+    for (int i = 0; i < kinematic_path.joint_path.size(); i++) {
+      body_index = kinematic_path.joint_path[i];
+      const std::unique_ptr<RigidBody>& body = bodies[body_index];
+      const DrakeJoint& joint = body->getJoint();
+
+      joint.motionSubspace(cached_q.data() + body->dofnum, motion_subspace); // TODO: should just let DrakeJoints work with VectorXds
+
+      sign = kinematic_path.joint_direction_signs[i];
+      auto block = J.template block<TWIST_SIZE, Dynamic>(0, col_start, TWIST_SIZE, joint.getNumVelocities());
+      block.noalias() = sign * transformSpatialMotion(Isometry3d(body->T), motion_subspace);
+
+      if (v_indices) {
+        for (int j = 0; j < joint.getNumVelocities(); j++) {
+          v_indices->push_back(body->dofnum + j); // FLOATINGBASE TODO: assumes qd = v
+        }
+      }
+      col_start = col_start + joint.getNumVelocities();
+    }
+    J = transformSpatialMotion(Isometry3d(T_world_to_frame), J);
+  }
+}
+
 template <typename DerivedA, typename DerivedB>
 void RigidBodyManipulator::forwardJac(const int body_or_frame_id, const MatrixBase<DerivedA> &pts, const int rotation_type, MatrixBase<DerivedB> &J)
 {
-  int n_pts = pts.cols(); Matrix4d Tframe;
-  int body_ind = parseBodyOrFrameID(body_or_frame_id,Tframe);
+  int n_pts = static_cast<int>(pts.cols()); Matrix4d Tframe;
+  int body_ind = parseBodyOrFrameID(body_or_frame_id, &Tframe);
 
   MatrixXd dTdq =  bodies[body_ind]->dTdq.topLeftCorner(3*num_dof,4)*Tframe;
   MatrixXd tmp =dTdq*pts;
@@ -1269,8 +1647,8 @@ void RigidBodyManipulator::forwardJac(const int body_or_frame_id, const MatrixBa
 template <typename DerivedA, typename DerivedB>
 void RigidBodyManipulator::forwardJacDot(const int body_or_frame_id, const MatrixBase<DerivedA> &pts, const int rotation_type, MatrixBase<DerivedB>& Jdot)
 {
-  int n_pts = pts.cols(); Matrix4d Tframe;
-  int body_ind = parseBodyOrFrameID(body_or_frame_id,Tframe);
+  int n_pts = static_cast<int>(pts.cols()); Matrix4d Tframe;
+  int body_ind = parseBodyOrFrameID(body_or_frame_id, &Tframe);
 
 	MatrixXd tmp = bodies[body_ind]->dTdqdot*Tframe*pts;
 	MatrixXd Jdott = Map<MatrixXd>(tmp.data(),num_dof,3*n_pts);
@@ -1314,8 +1692,8 @@ void RigidBodyManipulator::forwardJacDot(const int body_or_frame_id, const Matri
 template <typename DerivedA, typename DerivedB>
 void RigidBodyManipulator::forwarddJac(const int body_or_frame_id, const MatrixBase<DerivedA> &pts, MatrixBase<DerivedB>& dJ)
 {
-  int n_pts = pts.cols(); Matrix4d Tframe;
-  int body_ind = parseBodyOrFrameID(body_or_frame_id,Tframe);
+  int n_pts = static_cast<int>(pts.cols()); Matrix4d Tframe;
+  int body_ind = parseBodyOrFrameID(body_or_frame_id, &Tframe);
 
   int i,j;
   MatrixXd dJ_reshaped = MatrixXd(num_dof, 3*n_pts*num_dof);
@@ -1495,7 +1873,7 @@ void RigidBodyManipulator::HandC(double * const q, double * const qd, MatrixBase
   }
 }
 
-int RigidBodyManipulator::findLinkInd(string linkname, int robot)
+int RigidBodyManipulator::findLinkId(string linkname, int robot)
 {
   std::transform(linkname.begin(), linkname.end(), linkname.begin(), ::tolower); // convert to lower case
 
@@ -1562,43 +1940,48 @@ std::string RigidBodyManipulator::getBodyOrFrameName(int body_or_frame_id)
 
 
 // explicit instantiations (required for linking):
-template void RigidBodyManipulator::getCMM(double * const, double * const, MatrixBase< Map<MatrixXd> > &, MatrixBase< Map<MatrixXd> > &);
-template void RigidBodyManipulator::getCMM(double * const, double * const, MatrixBase< MatrixXd > &, MatrixBase< MatrixXd > &);
-template void RigidBodyManipulator::getCOM(MatrixBase< Map<Vector3d> > &,const set<int> &);
-template void RigidBodyManipulator::getCOM(MatrixBase< Map<MatrixXd> > &,const set<int> &);
-template void RigidBodyManipulator::getCOMJac(MatrixBase< Map<MatrixXd> > &,const set<int> &);
-template void RigidBodyManipulator::getCOMdJac(MatrixBase< Map<MatrixXd> > &,const set<int> &);
-template void RigidBodyManipulator::getCOMJacDot(MatrixBase< Map<MatrixXd> > &,const set<int> &);
-template void RigidBodyManipulator::getCOM(MatrixBase< Vector3d > &,const set<int> &);
-template void RigidBodyManipulator::getCOM(MatrixBase< MatrixXd > &,const set<int> &);
-template void RigidBodyManipulator::getCOMJac(MatrixBase< MatrixXd > &,const set<int> &);
-template void RigidBodyManipulator::getCOMdJac(MatrixBase< MatrixXd > &,const set<int> &);
-template void RigidBodyManipulator::getCOMJacDot(MatrixBase< MatrixXd > &,const set<int> &);
+template DLLEXPORT_RBM void RigidBodyManipulator::getCMM(double * const, double * const, MatrixBase< Map<MatrixXd> > &, MatrixBase< Map<MatrixXd> > &);
+template DLLEXPORT_RBM void RigidBodyManipulator::getCMM(double * const, double * const, MatrixBase< MatrixXd > &, MatrixBase< MatrixXd > &);
+template DLLEXPORT_RBM void RigidBodyManipulator::getCOM(MatrixBase< Map<Vector3d> > &,const set<int> &);
+template DLLEXPORT_RBM void RigidBodyManipulator::getCOM(MatrixBase< Map<MatrixXd> > &,const set<int> &);
+template DLLEXPORT_RBM void RigidBodyManipulator::getCOMJac(MatrixBase< Map<MatrixXd> > &,const set<int> &);
+template DLLEXPORT_RBM void RigidBodyManipulator::getCOMdJac(MatrixBase< Map<MatrixXd> > &,const set<int> &);
+template DLLEXPORT_RBM void RigidBodyManipulator::getCOMJacDot(MatrixBase< Map<MatrixXd> > &,const set<int> &);
+template DLLEXPORT_RBM void RigidBodyManipulator::getCOM(MatrixBase< Vector3d > &,const set<int> &);
+template DLLEXPORT_RBM void RigidBodyManipulator::getCOM(MatrixBase< MatrixXd > &,const set<int> &);
+template DLLEXPORT_RBM void RigidBodyManipulator::getCOMJac(MatrixBase< MatrixXd > &,const set<int> &);
+template DLLEXPORT_RBM void RigidBodyManipulator::getCOMdJac(MatrixBase< MatrixXd > &,const set<int> &);
+template DLLEXPORT_RBM void RigidBodyManipulator::getCOMJacDot(MatrixBase< MatrixXd > &,const set<int> &);
 
-template void RigidBodyManipulator::getContactPositions(MatrixBase <MatrixXd > &, const set<int> &);
-template void RigidBodyManipulator::getContactPositionsJac(MatrixBase <MatrixXd > &,const set<int> &);
-template void RigidBodyManipulator::getContactPositionsJacDot(MatrixBase <MatrixXd > &,const set<int> &);
+template DLLEXPORT_RBM void RigidBodyManipulator::getContactPositions(MatrixBase <MatrixXd > &, const set<int> &);
+template DLLEXPORT_RBM void RigidBodyManipulator::getContactPositionsJac(MatrixBase <MatrixXd > &,const set<int> &);
+template DLLEXPORT_RBM void RigidBodyManipulator::getContactPositionsJacDot(MatrixBase <MatrixXd > &,const set<int> &);
 
-template void RigidBodyManipulator::forwardKin(const int, const MatrixBase< MatrixXd >&, const int, MatrixBase< Map<MatrixXd> > &);
-template void RigidBodyManipulator::forwardJac(const int, const MatrixBase< MatrixXd > &, const int, MatrixBase< Map<MatrixXd> > &);
-template void RigidBodyManipulator::forwarddJac(const int, const MatrixBase< MatrixXd > &, MatrixBase< Map<MatrixXd> >&);
-template void RigidBodyManipulator::forwardKin(const int, const MatrixBase< MatrixXd >&, const int, MatrixBase< MatrixXd > &);
-template void RigidBodyManipulator::forwardJac(const int, const MatrixBase< MatrixXd > &, const int, MatrixBase< MatrixXd > &);
-template void RigidBodyManipulator::forwardJacDot(const int, const MatrixBase< MatrixXd > &, const int, MatrixBase< Map<MatrixXd> >&);
-template void RigidBodyManipulator::forwardJacDot(const int, const MatrixBase< MatrixXd > &, const int, MatrixBase< MatrixXd >&);
-template void RigidBodyManipulator::forwardJacDot(const int, const MatrixBase< Vector4d > &, const int, MatrixBase< MatrixXd >&);
-template void RigidBodyManipulator::forwarddJac(const int, const MatrixBase< MatrixXd > &, MatrixBase< MatrixXd >&);
-template void RigidBodyManipulator::forwardKin(const int, MatrixBase< Vector4d > const&, const int, MatrixBase< Vector3d > &);
-template void RigidBodyManipulator::forwardKin(const int, MatrixBase< Vector4d > const&, const int, MatrixBase< Matrix<double,6,1> > &);
-template void RigidBodyManipulator::forwardKin(const int, MatrixBase< Vector4d > const&, const int, MatrixBase< Matrix<double,7,1> > &);
-template void RigidBodyManipulator::forwardKin(const int, MatrixBase< Map<MatrixXd> > const&, const int, MatrixBase< MatrixXd > &);
-template void RigidBodyManipulator::forwardJac(const int, MatrixBase< Map<MatrixXd> > const&, const int, MatrixBase< MatrixXd > &);
-//template void RigidBodyManipulator::forwardKin(const int, const MatrixBase< Vector4d >&, const int, MatrixBase< Vector3d > &);
-template void RigidBodyManipulator::forwardJac(const int, const MatrixBase< Vector4d > &, const int, MatrixBase< MatrixXd > &);
-//template void RigidBodyManipulator::forwardJacDot(const int, const MatrixBase< Vector4d > &, MatrixBase< MatrixXd >&);
-//template void RigidBodyManipulator::forwarddJac(const int, const MatrixBase< Vector4d > &, MatrixBase< MatrixXd >&);
-template void RigidBodyManipulator::bodyKin(const int, const MatrixBase< MatrixXd >&, MatrixBase< Map<MatrixXd> > &, MatrixBase< Map<MatrixXd> > *, MatrixBase< Map<MatrixXd> > *);
-template void RigidBodyManipulator::bodyKin(const int, const MatrixBase< MatrixXd >&, MatrixBase< MatrixXd > &, MatrixBase< MatrixXd > *, MatrixBase< MatrixXd > *);
+template DLLEXPORT_RBM void RigidBodyManipulator::forwardKin(const int, const MatrixBase< MatrixXd >&, const int, MatrixBase< Map<MatrixXd> > &);
+template DLLEXPORT_RBM void RigidBodyManipulator::forwardKin(const int, const MatrixBase< MatrixXd >&, const int, MatrixBase< MatrixXd > &);
+template DLLEXPORT_RBM void RigidBodyManipulator::forwardKin(const int, MatrixBase< Vector4d > const&, const int, MatrixBase< Vector3d > &);
+template DLLEXPORT_RBM void RigidBodyManipulator::forwardKin(const int, MatrixBase< Vector4d > const&, const int, MatrixBase< Matrix<double,6,1> > &);
+template DLLEXPORT_RBM void RigidBodyManipulator::forwardKin(const int, MatrixBase< Vector4d > const&, const int, MatrixBase< Matrix<double,7,1> > &);
+template DLLEXPORT_RBM void RigidBodyManipulator::forwardKin(const int, MatrixBase< Map<MatrixXd> > const&, const int, MatrixBase< MatrixXd > &);
+//template DLLEXPORT_RBM void RigidBodyManipulator::forwardKin(const int, const MatrixBase< Vector4d >&, const int, MatrixBase< Vector3d > &);
+template DLLEXPORT_RBM void RigidBodyManipulator::forwardJac(const int, const MatrixBase< MatrixXd > &, const int, MatrixBase< Map<MatrixXd> > &);
+//template DLLEXPORT_RBM void RigidBodyManipulator::forwardJac(const int, MatrixBase< Map<MatrixXd> > const&, const int, MatrixBase< MatrixXd > &);
+//template DLLEXPORT_RBM void RigidBodyManipulator::forwardJac(const int, MatrixBase< MatrixXd > const&, const int, MatrixBase< MatrixXd > &);
+template DLLEXPORT_RBM void RigidBodyManipulator::forwardJac(const int, const MatrixBase< MatrixXd > &, const int, MatrixBase< MatrixXd > &);
+template DLLEXPORT_RBM void RigidBodyManipulator::forwardJac(const int, const MatrixBase< Vector4d > &, const int, MatrixBase< MatrixXd > &);
+template DLLEXPORT_RBM void RigidBodyManipulator::forwarddJac(const int, const MatrixBase< MatrixXd > &, MatrixBase< Map<MatrixXd> >&);
+template DLLEXPORT_RBM void RigidBodyManipulator::forwarddJac(const int, const MatrixBase< MatrixXd > &, MatrixBase< MatrixXd >&);
+//template DLLEXPORT_RBM void RigidBodyManipulator::forwarddJac(const int, const MatrixBase< Vector4d > &, MatrixBase< MatrixXd >&);
+template DLLEXPORT_RBM void RigidBodyManipulator::forwardJacDot(const int, const MatrixBase< MatrixXd > &, const int, MatrixBase< Map<MatrixXd> >&);
+template DLLEXPORT_RBM void RigidBodyManipulator::forwardJacDot(const int, const MatrixBase< MatrixXd > &, const int, MatrixBase< MatrixXd >&);
+template DLLEXPORT_RBM void RigidBodyManipulator::forwardJacDot(const int, const MatrixBase< Vector4d > &, const int, MatrixBase< MatrixXd >&);
+//template DLLEXPORT_RBM void RigidBodyManipulator::forwardJacDot(const int, const MatrixBase< Vector4d > &, MatrixBase< MatrixXd >&);
+template DLLEXPORT_RBM void RigidBodyManipulator::bodyKin(const int, const MatrixBase< MatrixXd >&, MatrixBase< Map<MatrixXd> > &, MatrixBase< Map<MatrixXd> > *, MatrixBase< Map<MatrixXd> > *);
+template DLLEXPORT_RBM void RigidBodyManipulator::bodyKin(const int, const MatrixBase< MatrixXd >&, MatrixBase< MatrixXd > &, MatrixBase< MatrixXd > *, MatrixBase< MatrixXd > *);
 
-template void RigidBodyManipulator::HandC(double* const, double * const, MatrixBase< Map<MatrixXd> > * const, MatrixBase< Map<MatrixXd> > &, MatrixBase< Map<VectorXd> > &, MatrixBase< Map<MatrixXd> > *, MatrixBase< Map<MatrixXd> > *, MatrixBase< Map<MatrixXd> > *);
-template void RigidBodyManipulator::HandC(double* const, double * const, MatrixBase< MatrixXd > * const, MatrixBase< MatrixXd > &, MatrixBase< VectorXd > &, MatrixBase< MatrixXd > *, MatrixBase< MatrixXd > *, MatrixBase< MatrixXd > *);
+template DLLEXPORT_RBM void RigidBodyManipulator::geometricJacobian(int, int, int, PlainObjectBase< Matrix<double, 6, Dynamic> >&, std::vector<int>*);
+template DLLEXPORT_RBM void RigidBodyManipulator::geometricJacobian(int, int, int, PlainObjectBase< MatrixXd >&, std::vector<int>*);
+
+template DLLEXPORT_RBM void RigidBodyManipulator::HandC(double* const, double * const, MatrixBase< Map<MatrixXd> > * const, MatrixBase< Map<MatrixXd> > &, MatrixBase< Map<VectorXd> > &, MatrixBase< Map<MatrixXd> > *, MatrixBase< Map<MatrixXd> > *, MatrixBase< Map<MatrixXd> > * const);
+template DLLEXPORT_RBM void RigidBodyManipulator::HandC(double* const, double * const, MatrixBase< MatrixXd > * const, MatrixBase< MatrixXd > &, MatrixBase< VectorXd > &, MatrixBase< MatrixXd > *, MatrixBase< MatrixXd > *, MatrixBase< MatrixXd > * const);
+

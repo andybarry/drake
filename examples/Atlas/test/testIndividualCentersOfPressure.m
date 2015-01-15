@@ -1,5 +1,6 @@
 function testIndividualCentersOfPressure()
-addpath(fullfile(pwd,'..'));
+
+path_handle = addpathTemporary(fullfile(getDrakePath,'examples','Atlas'));
 
 options.floating = true;
 options.use_mex = true;
@@ -22,7 +23,7 @@ q = xstar(1:nq);
 sides = {'l', 'r'};
 active_supports = nan(1, length(sides));
 for i = 1 : length(sides)
-  active_supports(i) = r.findLinkInd([sides{i} '_foot']);
+  active_supports(i) = r.findLinkId([sides{i} '_foot']);
 end
 
 kinsol = r.doKinematics(q, false, false);
@@ -57,6 +58,11 @@ end
 end
 
 function testMex(r)
+
+if exist('individualCentersOfPressuremex','file')~=3
+  error('Drake:MissingDependency', 'Cannot find individualCentersOfPressuremex. It may not have been compiled due to a missing dependency.');
+end
+
 nq = r.getNumPositions();
 ntests = 100;
 
@@ -67,7 +73,7 @@ for testnr = 1 : ntests
   sides = {'l', 'r'};
   active_supports = nan(1, length(sides));
   for i = 1 : length(sides)
-    active_supports(i) = r.findLinkInd([sides{i} '_foot']);
+    active_supports(i) = r.findLinkId([sides{i} '_foot']);
   end
 
   kinsol = r.doKinematics(q, false, false);

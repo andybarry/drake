@@ -18,7 +18,6 @@ function testURDFcollisionmex
     urdffile = GetFullPath(urdf{1});
     fprintf(1,'testing %s\n', urdffile);
     w = warning('off','Drake:RigidBodyManipulator:UnsupportedVelocityLimits');
-    warning('off','Drake:RigidBodyManipulator:UnsupportedJointLimits');
     warning('off','Drake:RigidBodyManipulator:UnsupportedContactPoints');
     r = RigidBodyManipulator(urdffile,struct('floating',true));
 
@@ -44,8 +43,8 @@ function testURDFcollisionmex
       normal_cpp = cell2mat(out(2:4))';
       xA_cpp = cell2mat(out(5:7))';
       xB_cpp = cell2mat(out(8:10))';
-      idxA_cpp = cellfun(@r.findLinkInd,out{11})';
-      idxB_cpp = cellfun(@r.findLinkInd,out{12})';
+      idxA_cpp = cellfun(@r.findLinkId,out{11})';
+      idxB_cpp = cellfun(@r.findLinkId,out{12})';
 
       % The link indices are not the same between the two manipulators,
       % therefore we'll use link names and check both body A and body B when

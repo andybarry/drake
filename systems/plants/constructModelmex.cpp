@@ -4,27 +4,11 @@
 #include "drakeUtil.h"
 #include "RigidBodyManipulator.h"
 #include <stdexcept>
-#include "joints/drakeJointUtil.h"
 
-#define INF -2147483648
+#include "joints/drakeJointUtil.h"
 
 using namespace Eigen;
 using namespace std;
-
-// convert Matlab cell array of strings into a C++ vector of strings
-vector<string> get_strings(const mxArray *rhs) {
-  int num = mxGetNumberOfElements(rhs);
-  vector<string> strings(num);
-  for (int i=0; i<num; i++) {
-    const mxArray *ptr = mxGetCell(rhs,i);
-    int buflen = mxGetN(ptr)*sizeof(mxChar)+1;
-    char* str = (char*)mxMalloc(buflen);
-    mxGetString(ptr, str, buflen);
-    strings[i] = string(str);
-    mxFree(str);
-  }
-  return strings;
-}
 
 void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 {
@@ -53,11 +37,11 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 
   const mxArray* pBodies = mxGetProperty(pRBM,0,"body");
   if (!pBodies) mexErrMsgIdAndTxt("Drake:constructModelmex:BadInputs","the body array is invalid");
-  int num_bodies = mxGetNumberOfElements(pBodies);
+  int num_bodies = static_cast<int>(mxGetNumberOfElements(pBodies));
 
   const mxArray* pFrames = mxGetProperty(pRBM,0,"frame");
   if (!pFrames) mexErrMsgIdAndTxt("Drake:constructModelmex:BadInputs","the frame array is invalid");
-  int num_frames = mxGetNumberOfElements(pFrames);
+  int num_frames = static_cast<int>(mxGetNumberOfElements(pFrames));
 
   // set up the model
   pm = mxGetField(featherstone,0,"NB");
@@ -183,7 +167,7 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
     if (!pm || mxIsEmpty(pm))
     	model->bodies[i]->parent = -1;
     else
-    	model->bodies[i]->parent = mxGetScalar(pm) - 1;
+    	model->bodies[i]->parent = static_cast<int>(mxGetScalar(pm)) - 1;
 
     if (model->bodies[i]->dofnum>=0) {
        pm = mxGetProperty(pBodies,i,"joint_limit_min");
@@ -198,7 +182,7 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
     //DEBUG
     //cout << "constructModelmex: About to parse collision geometry"  << endl;
     //END_DEBUG
-    pm = mxGetProperty(pBodies,i,"contact_shapes");
+    pm = mxGetProperty(pBodies,i,"collision_geometry");
     Matrix4d T;
     if (!mxIsEmpty(pm)){
       for (int j=0; j<mxGetNumberOfElements(pm); j++) {
@@ -216,7 +200,7 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 
         // Get element-to-link transform from MATLAB object
         memcpy(T.data(), mxGetPr(mxGetProperty(pShape,0,"T")), sizeof(double)*4*4);
-        auto shape = (DrakeCollision::Shape)mxGetScalar(mxGetProperty(pShape,0,"bullet_shape_id"));
+        auto shape = (DrakeCollision::Shape)static_cast<int>(mxGetScalar(mxGetProperty(pShape,0,"bullet_shape_id")));
         vector<double> params_vec;
         switch (shape) {
           case DrakeCollision::BOX:
@@ -298,7 +282,7 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
     //}
     //cout << "constructModelmex: Get numel of struct" << endl;
     //END_DEBUG
-    const int n_bodies_w_contact_pts = mxGetNumberOfElements(contact_pts_struct[0]);
+    const int n_bodies_w_contact_pts = static_cast<int>(mxGetNumberOfElements(contact_pts_struct[0]));
     //DEBUG
     //cout << "constructModelmex: Got numel of struct:" << n_bodies_w_contact_pts << endl;
     //END_DEBUG
@@ -320,7 +304,7 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
       //cout << "constructModelmex: Get points" << endl;
       //cout << "constructModelmex: Get number of points" << endl;
       //END_DEBUG
-      n_pts = mxGetN(pPts);
+      n_pts = static_cast<int>(mxGetN(pPts));
       //DEBUG
       //cout << "constructModelmex: Got number of points: " << n_pts << endl;
       //cout << "constructModelmex: Set contact_pts of body" << endl;
@@ -344,7 +328,7 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
     model->frames[i].body_ind = (int) mxGetScalar(pm)-1;
 
     pm = mxGetProperty(pFrames,i,"T");
-    memcpy(model->frames[i].T.data(),mxGetPr(pm),sizeof(double)*4*4);
+    memcpy(model->frames[i].Ttree.data(),mxGetPr(pm),sizeof(double)*4*4);
   }
 
 
@@ -360,6 +344,9 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
   } else {
     mexErrMsgIdAndTxt("Drake:constructModelmex:BadGravity","Couldn't find a 3 element gravity vector in the object.");
   }
+
+  mxLogical* use_new_kinsol = mxGetLogicals(mxGetProperty(pRBM,0,"use_new_kinsol"));
+  model->use_new_kinsol = (bool) use_new_kinsol[0];
 
   model->compile();
 

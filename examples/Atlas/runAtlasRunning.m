@@ -5,15 +5,13 @@ if ~checkDependency('gurobi')
   return;
 end
 
+import atlasControllers.*;
+
 if (nargin<1); use_mex = true; end
 if (nargin<2); use_angular_momentum = false; end
 
-addpath(fullfile(getDrakePath,'examples','Atlas','controllers'));
-addpath(fullfile(getDrakePath,'examples','Atlas','frames'));
-
 % silence some warnings
 warning('off','Drake:RigidBodyManipulator:UnsupportedContactPoints')
-warning('off','Drake:RigidBodyManipulator:UnsupportedJointLimits')
 warning('off','Drake:RigidBodyManipulator:UnsupportedVelocityLimits')
 
 options.floating = true;
@@ -34,9 +32,9 @@ xtraj = sol.xtraj_three;
 r.setInitialState(xtraj.eval(0));
 x_knots = xtraj.eval(ts);
 
-link_indices = [findLinkInd(r,'l_foot'), findLinkInd(r,'r_foot'),...
-    findLinkInd(r,'l_hand'), findLinkInd(r,'r_hand'), ...
-    findLinkInd(r,'pelvis'), findLinkInd(r,'utorso')];
+link_indices = [findLinkId(r,'l_foot'), findLinkId(r,'r_foot'),...
+    findLinkId(r,'l_hand'), findLinkId(r,'r_hand'), ...
+    findLinkId(r,'pelvis'), findLinkId(r,'utorso')];
 
 body_knots = cell(length(link_indices));
 for j=1:length(link_indices)
@@ -67,13 +65,13 @@ comdot = sol.comdot;
 comddot = sol.comddot;
 ts = sol.t;
 for i=1:5 % three strides
-  comi = sol.com;  
+  comi = sol.com;
   comdoti = sol.comdot;
   comddoti = sol.comddot;
   if mod(i,2)
-    comi(2,:) = -comi(2,:);  
-    comdoti(2,:) = -comdoti(2,:);  
-    comddoti(2,:) = -comddoti(2,:);  
+    comi(2,:) = -comi(2,:);
+    comdoti(2,:) = -comdoti(2,:);
+    comddoti(2,:) = -comddoti(2,:);
   end
   comi(1,:) = comi(1,:) + com(1,end);
   com = [com,comi];
@@ -89,8 +87,8 @@ end
 
 
 % manually extracting the support traj for now
-l_foot = r.findLinkInd('l_foot');
-r_foot = r.findLinkInd('r_foot');
+l_foot = r.findLinkId('l_foot');
+r_foot = r.findLinkId('r_foot');
 
 flight = RigidBodySupportState(r,[]);
 l_foot_support = RigidBodySupportState(r,l_foot);
@@ -111,9 +109,9 @@ r = r.setInitialState(x_knots(:,1));
 
 % build TV-LQR controller on COM dynamics
 x0traj = PPTrajectory(foh(ts,[com;comdot]));
-x0traj = x0traj.setOutputFrame(COMState);
+x0traj = x0traj.setOutputFrame(atlasFrames.COMState);
 u0traj = PPTrajectory(foh(ts,comddot));
-u0traj = u0traj.setOutputFrame(COMAcceleration);
+u0traj = u0traj.setOutputFrame(atlasFrames.COMAcceleration);
 
 Q = diag([10 10 10 1 1 1]);
 R = 0.0001*eye(3);
@@ -122,13 +120,13 @@ B = [zeros(3); eye(3)];
 options.tspan = ts;
 options.sqrtmethod = false;
 ti_sys = LinearSystem(A,B,[],[],eye(6),[]);
-ti_sys = ti_sys.setStateFrame(COMState);
-ti_sys = ti_sys.setOutputFrame(COMState);
-ti_sys = ti_sys.setInputFrame(COMAcceleration);
+ti_sys = ti_sys.setStateFrame(atlasFrames.COMState);
+ti_sys = ti_sys.setOutputFrame(atlasFrames.COMState);
+ti_sys = ti_sys.setInputFrame(atlasFrames.COMAcceleration);
 [~,V] = tvlqr(ti_sys,x0traj,u0traj,Q,R,Q,options);
 
 ctrl_data = QPControllerData(true,struct(...
-  'acceleration_input_frame',AtlasCoordinates(r),...
+  'acceleration_input_frame',atlasFrames.AtlasCoordinates(r),...
   'A',A,...
   'B',B,...
   'C',eye(6),...
@@ -162,7 +160,7 @@ if use_angular_momentum
   options.Kp_ang = 1.0; % angular momentum proportunal feedback gain
   options.W_kdot = 1e-5*eye(3); % angular momentum weight
 else
-  options.W_kdot = zeros(3); 
+  options.W_kdot = zeros(3);
 end
 
 boptions.Kp =250*ones(6,1);
@@ -224,8 +222,8 @@ ins(6).input = 7;
 ins(7).system = 2;
 ins(7).input = 8;
 sys = mimoFeedback(fc,sys,[],[],ins,outs);
-clear ins;  
-  
+clear ins;
+
 % feedback PD block
 options.use_ik = false;
 pd = IKPDBlock(r,ctrl_data,options);
